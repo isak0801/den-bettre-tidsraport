@@ -202,6 +202,7 @@ body[data-tab="stampla"] section.clock[data-tab]:not([hidden]){display:grid!impo
 
   <section class="panel clock" id="clock" data-tab="stampla" hidden>
     <div class="who"><h2 id="hello">Hej</h2><button class="link" type="button" id="rename">Byt namn</button></div>
+    <p class="sub" id="vaderRad" style="font-size:.85rem" hidden></p>
     <div class="snowbtn" id="snoPa" hidden><span>❄️ Få en notis 12 timmar innan snö eller halka.</span><button class="primary" type="button" id="snoKnapp">Slå på snölarm</button></div>
     <div id="idle" class="grid">
       <label id="kundRad" hidden>Plogar åt<select id="kund"></select></label>
@@ -484,7 +485,18 @@ $("snoKnapp").onclick=async()=>{
   catch(e){console.error(e);toast("Kunde inte slå på snölarmet. Försök igen.")}
   finally{$("snoKnapp").disabled=false}
 };
-function visaSnovarning(d){
+function visaVaderRad(d){
+  if(!d||!d.uppdaterad){show("vaderRad",false);return}
+  const t=new Date(d.uppdaterad),tim=(Date.now()-t)/3600e3;
+  const nar=`${dayLabel(t)==="idag"?"":dayLabel(t)+" "}kl ${hhmm(t)}`;
+  const text=d.aktiv?(d.title||"Snölarm aktivt"):(d.sammanfattning||"Ingen snö eller halka väntas närmaste 12 h.");
+  $("vaderRad").textContent=(tim>3?"⚠️ Vädret har inte kollats sedan ":"🌤️ Väder kollat ")+nar+" · "+text;
+  $("vaderRad").style.color=tim>3?"var(--danger)":"";
+  show("vaderRad",true);
+}
+setInterval(()=>visaVaderRad(senasteVader),60000);
+let senasteVader=null;
+function visaSnovarning(d){senasteVader=d;visaVaderRad(d);
   const aktiv=d&&d.aktiv&&(!d.giltigTill||new Date(d.giltigTill)>new Date());
   show("snoBanner",!!aktiv);
   if(aktiv){$("snoTitel").textContent=d.title||"Snölarm";$("snoText").textContent=d.body||""}
