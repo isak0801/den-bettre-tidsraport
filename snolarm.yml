@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-save firebase-admin@12
-      - run: node snolarm/kolla.mjs
+      - run: node kolla.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           APP_URL: ${{ vars.APP_URL }}
