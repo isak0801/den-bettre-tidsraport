@@ -182,6 +182,7 @@ tr.on td{background:var(--accent-soft)}
     <div class="who"><h2 id="hello">Hej</h2><button class="link" type="button" id="rename">Byt namn</button></div>
     <div class="snowbtn" id="snoPa" hidden><span>❄️ Få en notis 12 timmar innan snö eller halka.</span><button class="primary" type="button" id="snoKnapp">Slå på snölarm</button></div>
     <div id="idle" class="grid">
+      <label id="kundRad" hidden>Plogar åt<select id="kund"></select></label>
       <label>Typ av arbete<input id="typ" list="typList" autocomplete="off" placeholder="Plogning (valfritt)"></label>
       <label>Område / adress<input id="omrade" autocomplete="off" placeholder="Valfritt"></label>
     </div>
@@ -210,6 +211,7 @@ tr.on td{background:var(--accent-soft)}
           <label>Från<input id="mStart" class="time" inputmode="numeric" placeholder="04:30" maxlength="5"></label>
           <label>Till<input id="mSlut" class="time" inputmode="numeric" placeholder="09:15" maxlength="5"></label>
           <label>Rast (min)<input id="mRast" type="number" min="0" step="5" value="0"></label>
+          <label id="mKundRad" hidden>Plogar åt<select id="mKund"></select></label>
           <label>Typ av arbete<input id="mTyp" list="typList" autocomplete="off"></label>
           <label>Område / adress<input id="mOmrade" autocomplete="off"></label>
         </div>
@@ -244,9 +246,23 @@ tr.on td{background:var(--accent-soft)}
     </div>
   </section>
 
+  <section class="panel" id="kundPanel" hidden>
+    <h2>Kunder (företag ni plogar åt)</h2>
+    <p class="sub" style="font-size:.85rem;margin-top:2px">Lägg in varje företag. Under Personal och lön väljer du sedan vem varje anställd plogar åt.</p>
+    <form id="kForm" class="btns" style="margin-top:12px" novalidate>
+      <input id="kNamn" placeholder="Företagsnamn, t.ex. Kungälvsbostäder" style="flex:1 1 220px;width:auto">
+      <button class="primary" type="submit">Lägg till kund</button>
+    </form>
+    <div id="kLista" style="margin-top:8px"></div>
+  </section>
+
   <section class="panel" id="invPanel" hidden>
-    <h2>Faktura till uppdragsgivaren</h2>
-    <div class="prices">
+    <div class="period">
+      <h2>Faktura</h2>
+      <label style="min-width:200px">Kund<select id="fKund"></select></label>
+    </div>
+    <div class="tbl" id="kundSum"></div>
+    <div class="prices" id="prisRad">
       <label class="pricebox">Timpris<input id="pris" class="rate" type="number" min="0" step="10" inputmode="decimal" placeholder="kr/h"></label>
       <label class="pricebox">OB-tillägg 22–06<input id="ob" class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="0"><select id="obTyp" style="width:auto;padding:5px 7px;font-size:.88rem"><option value="kr">kr/h extra</option><option value="pct">% av timpris</option></select></label>
     </div>
@@ -272,6 +288,7 @@ tr.on td{background:var(--accent-soft)}
       <label class="pricebox">Timlön 06–22<input id="pLon" class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="kr/h"></label>
       <label class="pricebox">OB-lön 22–06<input id="pObLon" class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="kr/h"></label>
     </div>
+    <div id="pKunder" style="margin-top:16px"></div>
     <div class="breakdown" id="pBreak"></div>
     <p class="owner-note">Bruttolön före skatt. Lämnar du OB-lönen tom används timlönen även för OB-tid. Bara du ser löner.</p>
   </section>
@@ -333,7 +350,8 @@ function dayLabel(d){const t=new Date(),y=new Date();y.setDate(t.getDate()-1);
 
 let db=null,auth=null,uid=null,isOwner=false,authUser=null;
 let myName="",employees={},passes={},subs={};
-let rates={pris:0,ob:0,obTyp:"kr",lon:{},obLon:{}},ratesRef=null,ratesSaving=Promise.resolve();
+let rates={pris:0,ob:0,obTyp:"kr",lon:{},obLon:{},kpris:{}},ratesRef=null,ratesSaving=Promise.resolve();
+let kunder={},selKund="";
 let settingsRef=null,lastSeen=null,editing=null,knownDone=null,selPerson="";
 
 function parseTime(s){
@@ -355,11 +373,21 @@ function obMinutes(p){
   if(!all)return 0;
   return Math.round(ob*(p.minuter||0)/all);
 }
-const obRate=()=>rates.obTyp==="pct"?(rates.pris||0)*(rates.ob||0)/100:(rates.ob||0);
+/* Priser per kund (faller tillbaka på standardpriset) */
+const prisFor=k=>(k&&rates.kpris&&rates.kpris[k])||{pris:rates.pris||0,ob:rates.ob||0,obTyp:rates.obTyp||"kr"};
+const obRate=(k)=>{const p=prisFor(k);return p.obTyp==="pct"?(p.pris||0)*(p.ob||0)/100:(p.ob||0)};
 const wageParts=(id,min,obMin)=>{const l=rates.lon[id]||0,o=rates.obLon[id]||l;return {vanlig:l*(min-obMin)/60,ob:o*obMin/60}};
 const wageOf=(id,min,obMin)=>{const w=wageParts(id,min,obMin);return w.vanlig+w.ob};
-const invoiceOf=(min,obMin)=>(rates.pris||0)*min/60+obRate()*obMin/60;
+const invoiceOf=(min,obMin,k)=>(prisFor(k).pris||0)*min/60+obRate(k)*obMin/60;
 const nameOf=id=>(employees[id]&&employees[id].namn)||"Okänd";
+const kundNamn=k=>k?((kunder[k]&&kunder[k].namn)||"Borttagen kund"):"Ingen kund vald";
+const kundLista=()=>Object.keys(kunder).sort((a,b)=>sv(kunder[a].namn,kunder[b].namn));
+/* Kunder som en person plogar åt (alla om inget är valt) */
+const minaKunder=id=>{const v=((employees[id]&&employees[id].kunder)||[]).filter(k=>kunder[k]);return v.length?v.sort((a,b)=>sv(kunder[a].namn,kunder[b].namn)):kundLista()};
+function fyllKundSelect(sel,lista,valt){
+  sel.innerHTML=(lista.length>1?`<option value="">Välj kund…</option>`:"")+lista.map(k=>`<option value="${k}">${esc(kunder[k].namn)}</option>`).join("");
+  if(valt&&lista.includes(valt))sel.value=valt;else if(lista.length===1)sel.value=lista[0];
+}
 const passCol=id=>db.collection("tid/"+id+"/pass");
 const allPasses=()=>Object.entries(passes).flatMap(([id,list])=>list.map(p=>({...p,uid:id,namn:nameOf(id)})));
 const myActive=()=>(passes[uid]||[]).find(p=>p.status==="pagar");
@@ -372,7 +400,10 @@ $("tabIn").onclick=()=>setTab(false);$("tabNy").onclick=()=>setTab(true);
 const authFel=c=>({"auth/invalid-email":"Ogiltig e-postadress.","auth/missing-password":"Skriv ett lösenord.","auth/weak-password":"Lösenordet måste vara minst 6 tecken.",
   "auth/email-already-in-use":"Det finns redan ett konto med den e-posten. Logga in i stället.","auth/invalid-credential":"Fel e-post eller lösenord.",
   "auth/wrong-password":"Fel e-post eller lösenord.","auth/user-not-found":"Fel e-post eller lösenord.","auth/too-many-requests":"För många försök. Vänta en stund.",
-  "auth/network-request-failed":"Ingen anslutning. Försök igen."}[c]||"Något gick fel. Försök igen.");
+  "auth/network-request-failed":"Ingen anslutning. Försök igen.",
+  "auth/unauthorized-domain":"Firebase: domänen är inte godkänd. Lägg till isak0801.github.io under Authentication → Settings → Authorized domains.",
+  "auth/operation-not-allowed":"Firebase: inloggning med e-post/lösenord är inte påslaget. Slå på det under Authentication → Sign-in method.",
+  "auth/api-key-not-valid.-please-pass-a-valid-api-key.":"Firebase: fel apiKey i index.html."}[c]||("Något gick fel ("+(c||"okänt fel")+")."));
 $("loginForm").addEventListener("submit",async ev=>{
   ev.preventDefault();err("lErr");err("lOk");
   const e=$("lEpost").value.trim(),p=$("lLosen").value,n=$("lNamn").value.trim();
@@ -430,19 +461,24 @@ function renderClock(){
   $("hello").textContent="Hej "+myName;
   const a=myActive();
   show("idle",!a);show("idleBtn",!a);show("active",!!a);
+  const lista=minaKunder(uid);show("kundRad",lista.length>0);
+  const sig=lista.join(",");
+  if($("kund").dataset.sig!==sig){fyllKundSelect($("kund"),lista,$("kund").value||store.get("ihmt-kund"));$("kund").dataset.sig=sig}
   if(a){const s=new Date(a.start);
-    $("since").textContent=`Startade ${dayLabel(s)} kl ${hhmm(s)}${a.typ?" · "+a.typ:""}${a.omrade?" · "+a.omrade:""}`;tick()}
+    $("since").textContent=`Startade ${dayLabel(s)} kl ${hhmm(s)}${a.kund?" · "+kundNamn(a.kund):""}${a.typ?" · "+a.typ:""}${a.omrade?" · "+a.omrade:""}`;tick()}
 }
 function tick(){const a=myActive();if(a)$("elapsed").textContent=hm(minutesBetween(a.start,new Date()))}
 setInterval(tick,20000);
 
 $("startBtn").onclick=async()=>{
   if(myActive())return;
+  const kund=$("kund").value;
+  if(kundLista().length&&!kund){err("clockErr","Välj vilket företag du plogar åt.");$("kund").focus();return}
   const now=new Date();$("startBtn").disabled=true;err("clockErr");
   try{
     await passCol(uid).add({status:"pagar",start:now.toISOString(),datum:iso(now),slut:null,rastMin:0,minuter:0,
-      typ:$("typ").value.trim(),omrade:$("omrade").value.trim()});
-    store.set("ihmt-typ",$("typ").value.trim());
+      kund:kund||"",typ:$("typ").value.trim(),omrade:$("omrade").value.trim()});
+    store.set("ihmt-typ",$("typ").value.trim());store.set("ihmt-kund",kund);
     toast("Passet startade kl "+hhmm(now));
   }catch(e){err("clockErr","Kunde inte starta passet. Kontrollera anslutningen och försök igen.")}
   finally{$("startBtn").disabled=false}
@@ -474,7 +510,8 @@ function mCompute(){
 function mUpdate(){const c=mCompute();$("mCalc").textContent=c?`${hm(c.min)}${c.over?" · över midnatt":""}`:""}
 ["mDatum","mStart","mSlut","mRast"].forEach(id=>$(id).addEventListener("input",mUpdate));
 ["mStart","mSlut"].forEach(id=>$(id).addEventListener("blur",()=>{const v=parseTime($(id).value);if(v!==null)$(id).value=fmtT(v);mUpdate()}));
-function mReset(){editing=null;$("mDatum").value=iso(new Date());["mStart","mSlut","mTyp","mOmrade","mKommentar"].forEach(i=>$(i).value="");$("mSkada").checked=false;$("mRast").value=0;$("mSave").textContent="Spara pass";
+function mKunder(owner){const l=minaKunder(owner).slice();if(editing&&editing.kund&&kunder[editing.kund]&&!l.includes(editing.kund))l.push(editing.kund);show("mKundRad",l.length>0);fyllKundSelect($("mKund"),l,editing?editing.kund:($("kund").value||store.get("ihmt-kund")))}
+function mReset(){editing=null;mKunder(uid);$("mDatum").value=iso(new Date());["mStart","mSlut","mTyp","mOmrade","mKommentar"].forEach(i=>$(i).value="");$("mSkada").checked=false;$("mRast").value=0;$("mSave").textContent="Spara pass";
   $("manual").querySelector("summary").textContent="Glömt att stämpla? Lägg till pass i efterhand";err("mErr");mUpdate()}
 $("mCancel").onclick=()=>{mReset();$("manual").open=false};
 $("mForm").addEventListener("submit",async ev=>{
@@ -482,10 +519,11 @@ $("mForm").addEventListener("submit",async ev=>{
   const c=mCompute();
   if(!c)return err("mErr","Fyll i datum och från- och till-tid, t.ex. 04:30 och 09:15. Rasten måste vara kortare än passet.");
   if(!$("mKommentar").value.trim())return err("mErr","Skriv en kort kommentar om hur jobbet gick.");
+  if(kundLista().length&&!$("mKund").value)return err("mErr","Välj vilket företag passet gällde.");
   err("mErr");$("mSave").disabled=true;
   const owner=editing?editing.uid:uid;
   const data={status:"klar",start:c.start.toISOString(),slut:c.end.toISOString(),datum:iso(c.start),rastMin:c.r,minuter:c.min,
-    typ:$("mTyp").value.trim(),omrade:$("mOmrade").value.trim(),kommentar:$("mKommentar").value.trim(),skada:$("mSkada").checked,
+    kund:$("mKund").value||"",typ:$("mTyp").value.trim(),omrade:$("mOmrade").value.trim(),kommentar:$("mKommentar").value.trim(),skada:$("mSkada").checked,
     avslutad:editing&&editing.avslutad?editing.avslutad:new Date().toISOString(),efterhand:editing?!!editing.efterhand:true};
   try{
     if(editing)await passCol(owner).doc(editing.id).set(data);else await passCol(owner).add(data);
@@ -495,7 +533,7 @@ $("mForm").addEventListener("submit",async ev=>{
 });
 function startEdit(id,owner){
   const p=(passes[owner]||[]).find(x=>x.id===id);if(!p||p.status!=="klar")return;
-  editing={...p,uid:owner};
+  editing={...p,uid:owner};mKunder(owner);
   const s=new Date(p.start),e=new Date(p.slut);
   $("mDatum").value=iso(s);$("mStart").value=hhmm(s);$("mSlut").value=hhmm(e);$("mRast").value=p.rastMin||0;$("mTyp").value=p.typ||"";$("mOmrade").value=p.omrade||"";$("mKommentar").value=p.kommentar||"";$("mSkada").checked=!!p.skada;
   $("mSave").textContent="Spara ändringar";
@@ -553,18 +591,38 @@ function render(){
 
   if(isOwner){
     renderNotices();
-    const totOb=done.reduce((s,p)=>s+p.ob,0);
-    if(document.activeElement!==$("pris"))$("pris").value=rates.pris||"";
-    if(document.activeElement!==$("ob"))$("ob").value=rates.ob||"";
-    $("obTyp").value=rates.obTyp==="pct"?"pct":"kr";
-    const base=(rates.pris||0)*total/60,obKr=obRate()*totOb/60,net=base+obKr;
+    renderKunder();
+    // fakturaväljare
+    const harIngen=done.some(p=>!p.kund||!kunder[p.kund]);
+    const opts=[["","Alla kunder"],...kundLista().map(k=>[k,kunder[k].namn]),...(harIngen?[["_ingen","Ingen kund vald"]]:[])];
+    if(selKund&&!opts.some(o=>o[0]===selKund))selKund="";
+    $("fKund").innerHTML=opts.map(([v,t])=>`<option value="${v}">${esc(t)}</option>`).join("");$("fKund").value=selKund;
+    const kOf=p=>(p.kund&&kunder[p.kund])?p.kund:"_ingen";
+    const visaAlla=!selKund&&kundLista().length>0;
+    show("kundSum",visaAlla);show("prisRad",!visaAlla);show("tInv",!visaAlla);
+    if(visaAlla){
+      const sum={};done.forEach(p=>{const k=kOf(p);(sum[k]=sum[k]||{min:0,ob:0,n:0});sum[k].min+=p.minuter;sum[k].ob+=p.ob;sum[k].n++});
+      const ks=Object.keys(sum).sort((x,y)=>sv(x==="_ingen"?"ö":kundNamn(x),y==="_ingen"?"ö":kundNamn(y)));let tot=0;
+      const rader=ks.map(k=>{const kk=k==="_ingen"?"":k,v=invoiceOf(sum[k].min,sum[k].ob,kk);tot+=v;
+        return `<tr class="click" data-kund="${k}" tabindex="0"><td>${esc(k==="_ingen"?"Ingen kund vald":kundNamn(k))} ›</td><td class="num">${sum[k].n}</td><td class="num">${hm(sum[k].min)}${sum[k].ob?`<small>varav OB ${hm(sum[k].ob)}</small>`:""}</td><td class="num money">${prisFor(kk).pris?kr(v):"Ange pris"}</td></tr>`}).join("");
+      $("kundSum").innerHTML=ks.length?`<table><thead><tr><th>Kund</th><th class="num">Pass</th><th class="num">Tid</th><th class="num">Att fakturera</th></tr></thead><tbody>${rader}</tbody>${ks.length>1?`<tfoot><tr><td>Totalt</td><td></td><td class="num">${hm(total)}</td><td class="num money">${kr(tot)}</td></tr></tfoot>`:""}</table><p class="owner-note">Tryck på en kund för att se fakturaunderlaget och ställa in kundens pris.</p>`:`<p class="empty">Inga pass i den här perioden.</p>`;
+      $("kundSum").querySelectorAll("[data-kund]").forEach(tr=>{tr.onclick=()=>{selKund=tr.dataset.kund;render()};tr.onkeydown=e=>{if(e.key==="Enter"){selKund=tr.dataset.kund;render()}}});
+    }
+    const kk=selKund==="_ingen"?"":selKund;
+    const fd=selKund?done.filter(p=>kOf(p)===selKund):done;
+    const fMin=fd.reduce((s,p)=>s+p.minuter,0),totOb=fd.reduce((s,p)=>s+p.ob,0),pr=prisFor(kk);
+    if(document.activeElement!==$("pris"))$("pris").value=pr.pris||"";
+    if(document.activeElement!==$("ob"))$("ob").value=pr.ob||"";
+    $("obTyp").value=pr.obTyp==="pct"?"pct":"kr";
+    const base=(pr.pris||0)*fMin/60,obKr=obRate(kk)*totOb/60,net=base+obKr;
     $("tInv").innerHTML=`<tbody>
-      <tr><td>Vanlig tid 06–22</td><td class="num">${hm(total-totOb)}<small>${dec(total-totOb)} h</small></td><td></td><td></td></tr>
+      <tr><td>Vanlig tid 06–22</td><td class="num">${hm(fMin-totOb)}<small>${dec(fMin-totOb)} h</small></td><td></td><td></td></tr>
       <tr><td>OB-tid 22–06</td><td class="num">${hm(totOb)}<small>${dec(totOb)} h</small></td><td></td><td></td></tr>
-      <tr><td><b>Alla timmar</b></td><td class="num"><b>${hm(total)}</b><small>${dec(total)} h</small></td><td class="num">× ${rates.pris?kr(rates.pris)+"/h":"–"}</td><td class="num money">${kr(base)}</td></tr>
-      <tr><td>OB-tillägg</td><td class="num">${dec(totOb)} h</td><td class="num">× ${obRate()?kr(obRate())+"/h":"–"}</td><td class="num money">${kr(obKr)}</td></tr>
-      <tr class="sum"><td>Att fakturera</td><td></td><td></td><td class="num">${kr(net)}</td></tr></tbody>`;
-    $("export").hidden=!done.length;
+      <tr><td><b>Alla timmar</b></td><td class="num"><b>${hm(fMin)}</b><small>${dec(fMin)} h</small></td><td class="num">× ${pr.pris?kr(pr.pris)+"/h":"–"}</td><td class="num money">${kr(base)}</td></tr>
+      <tr><td>OB-tillägg</td><td class="num">${dec(totOb)} h</td><td class="num">× ${obRate(kk)?kr(obRate(kk))+"/h":"–"}</td><td class="num money">${kr(obKr)}</td></tr>
+      <tr class="sum"><td>Att fakturera${selKund?" – "+esc(selKund==="_ingen"?"ingen kund vald":kundNamn(selKund)):""}</td><td></td><td></td><td class="num">${kr(net)}</td></tr></tbody>`;
+    $("export").hidden=!fd.length;
+    $("export").textContent=selKund?`Exportera ${selKund==="_ingen"?"pass utan kund":kundNamn(selKund)} till Excel (CSV)`:"Exportera perioden till Excel (CSV)";
     const per={};Object.keys(employees).forEach(id=>per[id]={min:0,n:0,ob:0});
     done.forEach(p=>{(per[p.uid]=per[p.uid]||{min:0,n:0,ob:0});per[p.uid].min+=p.minuter;per[p.uid].ob+=p.ob;per[p.uid].n++});
     const ids=Object.keys(per).sort((x,y)=>sv(nameOf(x),nameOf(y)));let pay=0;
@@ -576,6 +634,11 @@ function render(){
     if(selPerson){
       const st=per[selPerson]||{min:0,n:0,ob:0},wp=wageParts(selPerson,st.min,st.ob),l=rates.lon[selPerson]||0,o=rates.obLon[selPerson]||0;
       $("pName").textContent=nameOf(selPerson);
+      const valda=(employees[selPerson]&&employees[selPerson].kunder)||[];
+      $("pKunder").innerHTML=kundLista().length?`<div class="l" style="font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:6px">Plogar åt</div><div class="btns">`+kundLista().map(k=>`<label class="check" style="background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 10px"><input type="checkbox" data-pk="${k}"${valda.includes(k)?" checked":""}>${esc(kunder[k].namn)}</label>`).join("")+`</div><p class="owner-note">Kryssa i vilka företag ${esc(nameOf(selPerson))} plogar åt. Det blir valen när hen startar ett pass. Inget ikryssat = alla kunder.</p>`:`<p class="owner-note">Lägg till kunder under "Kunder" för att kunna välja vem ${esc(nameOf(selPerson))} plogar åt.</p>`;
+      $("pKunder").querySelectorAll("[data-pk]").forEach(cb=>cb.onchange=async()=>{
+        const nya=[...$("pKunder").querySelectorAll("[data-pk]:checked")].map(x=>x.dataset.pk);
+        try{await db.doc("tid/"+selPerson).set({kunder:nya},{merge:true});toast("Sparat")}catch(e){toast("Kunde inte spara")}});
       $("pNorm").textContent=hm(st.min-st.ob);$("pOb").textContent=hm(st.ob);$("pTot").textContent=hm(st.min);$("pCount").textContent=st.n;
       if(document.activeElement!==$("pLon"))$("pLon").value=l||"";
       if(document.activeElement!==$("pObLon")){$("pObLon").value=o||"";$("pObLon").placeholder=l?String(l):"kr/h"}
@@ -596,7 +659,7 @@ function render(){
     return `<div class="day"><h4>${DAYS[dt.getDay()]} ${dt.getDate()} ${MONTHS[dt.getMonth()]}<span>${hm(sum)}</span></h4>`+g.map(p=>{
       const s=new Date(p.start),e=p.slut?new Date(p.slut):null,live=p.status==="pagar";
       return `<div class="row"><div class="t">${hhmm(s)}–${e?hhmm(e):"pågår"}<small>${live?"&nbsp;":p.rastMin?p.rastMin+" min rast":"ingen rast"}${e&&iso(e)!==iso(s)?" · över midnatt":""}</small></div>
-      <div class="w">${isOwner?`<b>${esc(p.namn)}</b>`:""}${live?`<span class="tag live">Pågår</span>`:""}${p.typ?`<span class="tag">${esc(p.typ)}</span>`:""}${p.skada?`<span class="tag warn">Skada</span>`:""}<small>${p.omrade?esc(p.omrade):""}</small>${p.kommentar?`<span class="comment">”${esc(p.kommentar)}”</span>`:""}</div>
+      <div class="w">${isOwner?`<b>${esc(p.namn)}</b>`:""}${live?`<span class="tag live">Pågår</span>`:""}${p.kund?`<span class="tag">${esc(kundNamn(p.kund))}</span>`:""}${p.typ?`<span class="tag">${esc(p.typ)}</span>`:""}${p.skada?`<span class="tag warn">Skada</span>`:""}<small>${p.omrade?esc(p.omrade):""}</small>${p.kommentar?`<span class="comment">”${esc(p.kommentar)}”</span>`:""}</div>
       <div class="h">${live?hm(minutesBetween(p.start,new Date())):hm(p.minuter)}${isOwner&&!live&&obMinutes(p)?`<small style="display:block;font-weight:400;color:var(--muted);font-size:.74rem">${hm(p.minuter-obMinutes(p))} + ${hm(obMinutes(p))} OB</small>`:""}</div>
       <div class="acts">${live?"":`<button class="link" type="button" data-edit="${p.id}" data-uid="${p.uid}">Ändra</button>`}<button class="link del" type="button" data-del="${p.id}" data-uid="${p.uid}">Ta bort</button></div></div>`}).join("")+`</div>`;
   }).join("");
@@ -631,23 +694,47 @@ function announce(){
 
 /* ---------- priser (bara ägaren) ---------- */
 function persistRates(){if(!ratesRef)return;ratesSaving=ratesSaving.then(()=>ratesRef.set(rates)).then(()=>toast("Sparat")).catch(()=>toast("Kunde inte spara"))}
-$("pris").addEventListener("change",()=>{rates={...rates,pris:num($("pris").value)};render();persistRates()});
-$("ob").addEventListener("change",()=>{rates={...rates,ob:num($("ob").value)};render();persistRates()});
-$("obTyp").addEventListener("change",()=>{rates={...rates,obTyp:$("obTyp").value};render();persistRates()});
+/* priset sparas på vald kund, annars som standardpris */
+function setPris(falt,varde){
+  const k=selKund&&selKund!=="_ingen"?selKund:"";
+  if(k){const kp={...(rates.kpris||{})};kp[k]={...prisFor(k),[falt]:varde};rates={...rates,kpris:kp}}
+  else rates={...rates,[falt]:varde};
+  render();persistRates();
+}
+$("pris").addEventListener("change",()=>setPris("pris",num($("pris").value)));
+$("ob").addEventListener("change",()=>setPris("ob",num($("ob").value)));
+$("obTyp").addEventListener("change",()=>setPris("obTyp",$("obTyp").value));
+$("fKund").addEventListener("change",()=>{selKund=$("fKund").value;render()});
+
+/* ---------- kunder (ägaren lägger till, alla ser namnen) ---------- */
+function renderKunder(){
+  const l=kundLista();
+  $("kLista").innerHTML=l.length?l.map(k=>`<div class="notice"><span class="ic"></span><div><b>${esc(kunder[k].namn)}</b><small>${(rates.kpris&&rates.kpris[k]&&rates.kpris[k].pris)?kr(rates.kpris[k].pris)+"/h":"Inget pris inställt än"}</small></div><button class="link del" type="button" data-kdel="${k}">Ta bort</button></div>`).join(""):`<p class="empty">Inga kunder än.</p>`;
+  $("kLista").querySelectorAll("[data-kdel]").forEach(b=>b.onclick=async()=>{
+    if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="Säker?";setTimeout(()=>{b.dataset.confirm="";b.textContent="Ta bort"},3000);return}
+    try{await db.doc("kunder/"+b.dataset.kdel).delete();toast("Kunden borttagen")}catch(e){toast("Kunde inte ta bort")}});
+}
+$("kForm").addEventListener("submit",async ev=>{
+  ev.preventDefault();const n=$("kNamn").value.trim();if(!n)return;
+  if(kundLista().some(k=>kunder[k].namn.toLowerCase()===n.toLowerCase()))return toast("Den kunden finns redan");
+  try{await db.collection("kunder").add({namn:n});$("kNamn").value="";toast("Kund tillagd")}catch(e){toast("Kunde inte spara kunden")}
+});
 
 /* ---------- export ---------- */
 $("export").onclick=()=>{
   const a=$("pFrom").value,b=$("pTo").value;
-  const rows=allPasses().filter(p=>p.status==="klar"&&p.datum>=a&&p.datum<=b).sort((x,y)=>x.start.localeCompare(y.start));
+  const kOf=p=>(p.kund&&kunder[p.kund])?p.kund:"_ingen";
+  const rows=allPasses().filter(p=>p.status==="klar"&&p.datum>=a&&p.datum<=b&&(!selKund||kOf(p)===selKund)).sort((x,y)=>x.start.localeCompare(y.start));
   const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const c2=v=>v.toFixed(2).replace(".",",");
-  const lines=[["Datum","Veckodag","Person","Typ av arbete","Område/adress","Från","Till","Rast (min)","Tid totalt","Timmar totalt (decimal)","Vanlig tid 06-22","OB-tid 22-06","OB-timmar (decimal)","Timpris","OB-tillägg (kr/h)","Att fakturera","Timlön 06-22","OB-lön 22-06","Bruttolön","Skada","Kommentar"].join(";")];
-  rows.forEach(p=>{const s=new Date(p.start),e=new Date(p.slut),pr=rates.pris||0,l=rates.lon[p.uid]||0,ol=rates.obLon[p.uid]||0,ob=obMinutes(p),w=wageOf(p.uid,p.minuter,ob),inv=invoiceOf(p.minuter,ob);
-    lines.push([p.datum,DAYS[s.getDay()],p.namn,p.typ,p.omrade,hhmm(s),hhmm(e),p.rastMin||0,hm(p.minuter),dec(p.minuter),hm(p.minuter-ob),hm(ob),dec(ob),pr||"",obRate()?c2(obRate()):"",inv?c2(inv):"",l||"",ol||"",w?c2(w):"",p.skada?"Ja":"",p.kommentar||""].map(q).join(";"))});
+  const lines=[["Datum","Veckodag","Kund","Person","Typ av arbete","Område/adress","Från","Till","Rast (min)","Tid totalt","Timmar totalt (decimal)","Vanlig tid 06-22","OB-tid 22-06","OB-timmar (decimal)","Timpris","OB-tillägg (kr/h)","Att fakturera","Timlön 06-22","OB-lön 22-06","Bruttolön","Skada","Kommentar"].join(";")];
+  let totInv=0;
+  rows.forEach(p=>{const s=new Date(p.start),e=new Date(p.slut),kk=kOf(p)==="_ingen"?"":p.kund,pr=prisFor(kk).pris||0,obr=obRate(kk),l=rates.lon[p.uid]||0,ol=rates.obLon[p.uid]||0,ob=obMinutes(p),w=wageOf(p.uid,p.minuter,ob),inv=invoiceOf(p.minuter,ob,kk);totInv+=inv;
+    lines.push([p.datum,DAYS[s.getDay()],kundNamn(kk),p.namn,p.typ,p.omrade,hhmm(s),hhmm(e),p.rastMin||0,hm(p.minuter),dec(p.minuter),hm(p.minuter-ob),hm(ob),dec(ob),pr||"",obr?c2(obr):"",inv?c2(inv):"",l||"",ol||"",w?c2(w):"",p.skada?"Ja":"",p.kommentar||""].map(q).join(";"))});
   const tot=rows.reduce((s,p)=>s+p.minuter,0),totOb=rows.reduce((s,p)=>s+obMinutes(p),0);
-  lines.push(["","","","","","","","Totalt",hm(tot),dec(tot),hm(tot-totOb),hm(totOb),dec(totOb),"","",c2(invoiceOf(tot,totOb))].join(";"));
+  lines.push(["","","","","","","","","Totalt",hm(tot),dec(tot),hm(tot-totOb),hm(totOb),dec(totOb),"","",c2(totInv)].join(";"));
   const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
-  const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`tidrapport_${a}_${b}.csv`;
+  const link=document.createElement("a");link.href=URL.createObjectURL(blob);const fn=selKund?(selKund==="_ingen"?"utan-kund":kundNamn(selKund)).replace(/[^\wåäöÅÄÖ-]+/g,"-")+"_":"";link.download=`tidrapport_${fn}${a}_${b}.csv`;
   document.body.appendChild(link);link.click();setTimeout(()=>{URL.revokeObjectURL(link.href);link.remove()},1000);
 };
 
@@ -665,7 +752,7 @@ function startaApp(u){
   isOwner=(u.email||"").toLowerCase()===AGARE_EPOST.toLowerCase()&&u.emailVerified;
   $("status").textContent=u.email||"";show("logout",true);show("login",false);
   show("verify",(u.email||"").toLowerCase()===AGARE_EPOST.toLowerCase()&&!u.emailVerified);
-  show("periodPanel",true);show("listPanel",true);show("sumPanel",!isOwner);show("notisPanel",isOwner);show("invPanel",isOwner);show("payPanel",isOwner);
+  show("periodPanel",true);show("listPanel",true);show("sumPanel",!isOwner);show("notisPanel",isOwner);show("invPanel",isOwner);show("kundPanel",isOwner);show("payPanel",isOwner);
 
   db.doc("tid/"+uid).onSnapshot(s=>{
     const d=s.exists?s.data():null;
@@ -676,6 +763,7 @@ function startaApp(u){
     render();
   },()=>{});
   watchPasses(uid);
+  db.collection("kunder").onSnapshot(snap=>{kunder={};snap.docs.forEach(d=>{const v=d.data();if(v&&v.namn)kunder[d.id]=v});$("kund").dataset.sig="";render()},()=>{});
   db.doc("snolarm/aktuell").onSnapshot(s=>visaSnovarning(s.exists?s.data():null),()=>{});
   renderSnoKnapp();
   if(store.get("ihmt-snolarm")==="pa")sparaToken(false).catch(()=>{}); // förnya token tyst
@@ -683,7 +771,7 @@ function startaApp(u){
   if(isOwner){
     db.collection("tid").onSnapshot(snap=>{snap.docs.forEach(d=>{employees[d.id]=d.data();watchPasses(d.id)});render()},()=>{});
     ratesRef=db.doc("agare/priser");
-    ratesRef.onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&!s.metadata.hasPendingWrites){rates={pris:typeof d.pris==="number"?d.pris:0,ob:typeof d.ob==="number"?d.ob:0,obTyp:d.obTyp==="pct"?"pct":"kr",lon:{...(d.lon||{})},obLon:{...(d.obLon||{})}};render()}},()=>{});
+    ratesRef.onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&!s.metadata.hasPendingWrites){rates={pris:typeof d.pris==="number"?d.pris:0,ob:typeof d.ob==="number"?d.ob:0,obTyp:d.obTyp==="pct"?"pct":"kr",lon:{...(d.lon||{})},obLon:{...(d.obLon||{})},kpris:{...(d.kpris||{})}};render()}},()=>{});
     settingsRef=db.doc("agare/installningar");
     settingsRef.onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&d.senastSett&&!s.metadata.hasPendingWrites){lastSeen=d.senastSett;render()}},()=>{});
   }
