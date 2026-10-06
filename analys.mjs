@@ -88,7 +88,9 @@ export function analysera(prognos, nu = new Date(), inst = INSTALLNINGAR) {
     }
   }
 
-  return { sno, halka };
+  const temps = fonster.map((s) => s.temp).filter((t) => t !== null);
+  const minTemp = temps.length ? Math.min(...temps) : null;
+  return { sno, halka, minTemp };
 }
 
 const DAGAR = ['sön', 'mån', 'tis', 'ons', 'tor', 'fre', 'lör'];
