@@ -63,7 +63,7 @@ async function main() {
   }
 
   const nu = new Date();
-  const { sno, halka } = analysera(await hamtaPrognos(), nu);
+  const { sno, halka, minTemp } = analysera(await hamtaPrognos(), nu);
   console.log('Analys:', JSON.stringify({ sno, halka }));
 
   // Varningen som visas överst i appen (uppdateras varje timme)
@@ -77,7 +77,11 @@ async function main() {
         giltigTill: new Date((visa.slut || visa.start).getTime() + 3 * 3600e3).toISOString(),
         uppdaterad: nu.toISOString(),
       }
-    : { aktiv: false, uppdaterad: nu.toISOString() };
+    : {
+        aktiv: false,
+        sammanfattning: `Ingen snö eller halka väntas närmaste 12 h${minTemp !== null ? ` (lägst ${Math.round(minTemp)}°)` : ''}.`,
+        uppdaterad: nu.toISOString(),
+      };
   if (!TORR) await db.collection('snolarm').doc('aktuell').set(aktuell);
 
   const statusRef = db.collection('snolarm').doc('status');
