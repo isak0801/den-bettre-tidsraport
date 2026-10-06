@@ -1,6 +1,6 @@
 // Service worker för IHMT Tidrapport: gör appen installerbar, fungerar vid dålig täckning
 // och visar snölarmet som notis även när appen är stängd.
-const CACHE = 'ihmt-tid-v1';
+const CACHE = 'ihmt-tid-v2';
 const FILER = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -20,7 +20,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' }) // hämta alltid senaste versionen när det finns nät
       .then((svar) => {
         const kopia = svar.clone();
         caches.open(CACHE).then((c) => c.put(req, kopia));
