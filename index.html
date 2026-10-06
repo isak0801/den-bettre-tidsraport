@@ -117,6 +117,21 @@ tr.on td{background:var(--accent-soft)}
 .breakdown{display:grid;gap:6px;margin-top:14px;font-family:var(--font-num);font-size:.92rem}
 .breakdown div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:6px}
 .breakdown .tot{font-weight:700;font-size:1.1rem;border-bottom:none;color:var(--money)}
+/* adminmeny */
+.nav{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px;position:sticky;top:calc(6px + env(safe-area-inset-top,0px));z-index:5}
+.nav button{flex:1;border:none;background:none;padding:10px 6px;font-size:.95rem}
+.nav button.on{background:var(--accent);color:var(--accent-fg)}
+body[data-tab] section[data-tab]{display:none!important}
+body[data-tab="stampla"] section[data-tab="stampla"]:not([hidden]),body[data-tab="oversikt"] section[data-tab="oversikt"]:not([hidden]),body[data-tab="admin"] section[data-tab="admin"]:not([hidden]){display:block!important}
+body[data-tab="stampla"] section.clock[data-tab]:not([hidden]){display:grid!important}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;display:grid;gap:8px}
+.card .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.card .top b{font-size:1rem}
+.card small{color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips label{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:.88rem;font-weight:500;text-transform:none;letter-spacing:0;color:var(--fg)}
+.chips input{width:auto}
+.tag.off{background:var(--line);color:var(--muted)}
 /* login */
 .login{max-width:420px;width:100%;margin:0 auto;display:grid;gap:14px}
 .login form{display:grid;gap:12px}
@@ -147,11 +162,17 @@ tr.on td{background:var(--accent-soft)}
     <div class="btns"><p class="sub" id="status">Ansluter…</p><button class="link" type="button" id="logout" hidden>Logga ut</button></div>
   </header>
 
+  <nav class="nav" id="adminNav" hidden>
+    <button type="button" data-tabknapp="stampla">Stämpla</button>
+    <button type="button" data-tabknapp="oversikt">Översikt</button>
+    <button type="button" data-tabknapp="admin">Admin</button>
+  </nav>
+
   <section class="snow" id="snoBanner" hidden><b id="snoTitel"></b><span id="snoText"></span></section>
 
   <!-- Inloggning -->
   <section class="panel login" id="login" hidden>
-    <div class="tabs"><button type="button" id="tabIn" class="on">Logga in</button><button type="button" id="tabNy">Skapa konto</button></div>
+    <div class="tabs" hidden><button type="button" id="tabIn" class="on">Logga in</button><button type="button" id="tabNy">Skapa konto</button></div>
     <form id="loginForm" novalidate>
       <label id="namnRad" hidden>Förnamn<input id="lNamn" autocomplete="given-name"></label>
       <label>E-post<input id="lEpost" type="email" autocomplete="email" inputmode="email"></label>
@@ -159,6 +180,7 @@ tr.on td{background:var(--accent-soft)}
       <button class="primary" type="submit" id="lKnapp">Logga in</button>
       <button class="link" type="button" id="glomt">Glömt lösenordet?</button>
     </form>
+    <p class="sub" style="font-size:.85rem">Inget konto? Be Isak lägga in dig.</p>
     <p class="err" id="lErr" hidden></p><p class="ok" id="lOk" hidden></p>
   </section>
 
@@ -178,7 +200,7 @@ tr.on td{background:var(--accent-soft)}
     <p class="err" id="setupErr" hidden></p>
   </section>
 
-  <section class="panel clock" id="clock" hidden>
+  <section class="panel clock" id="clock" data-tab="stampla" hidden>
     <div class="who"><h2 id="hello">Hej</h2><button class="link" type="button" id="rename">Byt namn</button></div>
     <div class="snowbtn" id="snoPa" hidden><span>❄️ Få en notis 12 timmar innan snö eller halka.</span><button class="primary" type="button" id="snoKnapp">Slå på snölarm</button></div>
     <div id="idle" class="grid">
@@ -230,12 +252,12 @@ tr.on td{background:var(--accent-soft)}
     <datalist id="typList"><option value="Plogning"><option value="Sandning"><option value="Saltning"><option value="Snöskottning"><option value="Snöröjning tak"><option value="Bortforsling snö"></datalist>
   </section>
 
-  <section class="panel" id="notisPanel" hidden>
+  <section class="panel" id="notisPanel" data-tab="stampla" hidden>
     <div class="period"><h2>Notiser<span class="badge" id="badge" hidden></span></h2><button type="button" id="markRead" hidden>Markera som lästa</button></div>
     <div id="notiser" style="margin-top:8px"></div>
   </section>
 
-  <section class="panel" id="periodPanel" hidden>
+  <section class="panel" id="periodPanel" data-tab="oversikt" hidden>
     <div class="period">
       <h2>Period</h2>
       <div class="grid" style="max-width:560px">
@@ -246,17 +268,34 @@ tr.on td{background:var(--accent-soft)}
     </div>
   </section>
 
-  <section class="panel" id="kundPanel" hidden>
-    <h2>Kunder (företag ni plogar åt)</h2>
-    <p class="sub" style="font-size:.85rem;margin-top:2px">Lägg in varje företag. Under Personal och lön väljer du sedan vem varje anställd plogar åt.</p>
+  <section class="panel" id="forarePanel" data-tab="admin" hidden>
+    <h2>Förare</h2>
+    <p class="sub" style="font-size:.85rem;margin-top:2px">Lägg in en förare här. Hen loggar sedan in i appen med e-posten och lösenordet.</p>
+    <form id="fForm" novalidate style="display:grid;gap:12px;margin-top:12px">
+      <div class="grid">
+        <label>Namn<input id="fNamn" autocomplete="off" placeholder="T.ex. Erik"></label>
+        <label>E-post<input id="fEpost" type="email" autocomplete="off" inputmode="email"></label>
+        <label>Startlösenord<input id="fLosen" autocomplete="off" placeholder="Minst 6 tecken"></label>
+      </div>
+      <div><div class="sub" style="font-size:.76rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Plogar åt</div><div class="chips" id="fKunder"></div></div>
+      <label class="check"><input type="checkbox" id="fMejl">Skicka också ett mejl så att föraren kan välja eget lösenord</label>
+      <div class="btns"><button class="primary" type="submit" id="fKnapp">Lägg till förare</button></div>
+    </form>
+    <p class="err" id="fErr" hidden></p><p class="ok" id="fOk" hidden></p>
+    <div id="fLista" style="margin-top:6px"></div>
+  </section>
+
+  <section class="panel" id="kundPanel" data-tab="admin" hidden>
+    <h2>Uppdragsgivare</h2>
+    <p class="sub" style="font-size:.85rem;margin-top:2px">Företagen ni plogar åt, med pris per timme. Under Förare väljer du vem som plogar åt vem.</p>
     <form id="kForm" class="btns" style="margin-top:12px" novalidate>
       <input id="kNamn" placeholder="Företagsnamn, t.ex. Kungälvsbostäder" style="flex:1 1 220px;width:auto">
-      <button class="primary" type="submit">Lägg till kund</button>
+      <button class="primary" type="submit">Lägg till uppdragsgivare</button>
     </form>
     <div id="kLista" style="margin-top:8px"></div>
   </section>
 
-  <section class="panel" id="invPanel" hidden>
+  <section class="panel" id="invPanel" data-tab="oversikt" hidden>
     <div class="period">
       <h2>Faktura</h2>
       <label style="min-width:200px">Kund<select id="fKund"></select></label>
@@ -270,13 +309,13 @@ tr.on td{background:var(--accent-soft)}
     <div class="btns" style="margin-top:16px"><button type="button" id="export" hidden>Exportera perioden till Excel (CSV)</button></div>
   </section>
 
-  <section class="panel" id="payPanel" hidden>
+  <section class="panel" id="payPanel" data-tab="oversikt" hidden>
     <h2>Personal och lön</h2>
     <p class="sub" style="font-size:.85rem">Tryck på en person för att se timmar och bruttolön.</p>
     <div class="tbl"><table id="tPerson"></table></div>
   </section>
 
-  <section class="panel" id="personPanel" hidden>
+  <section class="panel" id="personPanel" data-tab="oversikt" hidden>
     <div class="period"><h2 id="pName"></h2><button type="button" id="pClose">Stäng</button></div>
     <div class="stats">
       <div class="stat"><div class="n" id="pNorm"></div><div class="l">Vanlig tid 06–22</div></div>
@@ -288,7 +327,6 @@ tr.on td{background:var(--accent-soft)}
       <label class="pricebox">Timlön 06–22<input id="pLon" class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="kr/h"></label>
       <label class="pricebox">OB-lön 22–06<input id="pObLon" class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="kr/h"></label>
     </div>
-    <div id="pKunder" style="margin-top:16px"></div>
     <div class="breakdown" id="pBreak"></div>
     <p class="owner-note">Bruttolön före skatt. Lämnar du OB-lönen tom används timlönen även för OB-tid. Bara du ser löner.</p>
   </section>
@@ -301,7 +339,7 @@ tr.on td{background:var(--accent-soft)}
     </div>
   </section>
 
-  <section class="panel" id="listPanel" hidden>
+  <section class="panel" id="listPanel" data-tab="oversikt" hidden>
     <div class="period">
       <h2 id="listTitle">Mina pass</h2>
       <label style="min-width:180px" data-owner hidden>Visa person<select id="fPerson"><option value="">Alla</option></select></label>
@@ -549,7 +587,7 @@ async function del(id,owner,btn){
 $("setupForm").addEventListener("submit",async ev=>{
   ev.preventDefault();const n=$("myName").value.trim();
   if(!n)return err("setupErr","Skriv ditt namn.");
-  try{await db.doc("tid/"+uid).set({namn:n,epost:authUser.email||""},{merge:true});err("setupErr")}catch(e){err("setupErr","Kunde inte spara. Försök igen.")}
+  try{await db.doc("tid/"+uid).set({namn:n,epost:authUser.email||""},{merge:true});err("setupErr")}catch(e){err("setupErr","Kunde inte spara. Be Isak lägga in dig som förare i appen.")}
 });
 $("rename").onclick=()=>{$("myName").value=myName;show("setup",true);show("clock",false);$("myName").focus()};
 
@@ -591,7 +629,7 @@ function render(){
 
   if(isOwner){
     renderNotices();
-    renderKunder();
+    renderKunder();renderForare();
     // fakturaväljare
     const harIngen=done.some(p=>!p.kund||!kunder[p.kund]);
     const opts=[["","Alla kunder"],...kundLista().map(k=>[k,kunder[k].namn]),...(harIngen?[["_ingen","Ingen kund vald"]]:[])];
@@ -634,11 +672,7 @@ function render(){
     if(selPerson){
       const st=per[selPerson]||{min:0,n:0,ob:0},wp=wageParts(selPerson,st.min,st.ob),l=rates.lon[selPerson]||0,o=rates.obLon[selPerson]||0;
       $("pName").textContent=nameOf(selPerson);
-      const valda=(employees[selPerson]&&employees[selPerson].kunder)||[];
-      $("pKunder").innerHTML=kundLista().length?`<div class="l" style="font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:6px">Plogar åt</div><div class="btns">`+kundLista().map(k=>`<label class="check" style="background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:6px 10px"><input type="checkbox" data-pk="${k}"${valda.includes(k)?" checked":""}>${esc(kunder[k].namn)}</label>`).join("")+`</div><p class="owner-note">Kryssa i vilka företag ${esc(nameOf(selPerson))} plogar åt. Det blir valen när hen startar ett pass. Inget ikryssat = alla kunder.</p>`:`<p class="owner-note">Lägg till kunder under "Kunder" för att kunna välja vem ${esc(nameOf(selPerson))} plogar åt.</p>`;
-      $("pKunder").querySelectorAll("[data-pk]").forEach(cb=>cb.onchange=async()=>{
-        const nya=[...$("pKunder").querySelectorAll("[data-pk]:checked")].map(x=>x.dataset.pk);
-        try{await db.doc("tid/"+selPerson).set({kunder:nya},{merge:true});toast("Sparat")}catch(e){toast("Kunde inte spara")}});
+
       $("pNorm").textContent=hm(st.min-st.ob);$("pOb").textContent=hm(st.ob);$("pTot").textContent=hm(st.min);$("pCount").textContent=st.n;
       if(document.activeElement!==$("pLon"))$("pLon").value=l||"";
       if(document.activeElement!==$("pObLon")){$("pObLon").value=o||"";$("pObLon").placeholder=l?String(l):"kr/h"}
@@ -708,12 +742,67 @@ $("fKund").addEventListener("change",()=>{selKund=$("fKund").value;render()});
 
 /* ---------- kunder (ägaren lägger till, alla ser namnen) ---------- */
 function renderKunder(){
-  const l=kundLista();
-  $("kLista").innerHTML=l.length?l.map(k=>`<div class="notice"><span class="ic"></span><div><b>${esc(kunder[k].namn)}</b><small>${(rates.kpris&&rates.kpris[k]&&rates.kpris[k].pris)?kr(rates.kpris[k].pris)+"/h":"Inget pris inställt än"}</small></div><button class="link del" type="button" data-kdel="${k}">Ta bort</button></div>`).join(""):`<p class="empty">Inga kunder än.</p>`;
+  const l=kundLista(),fokus=document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#kLista");
+  if(fokus)return; // skriv inte över medan du skriver
+  $("kLista").innerHTML=l.length?l.map(k=>{const pr=(rates.kpris&&rates.kpris[k])||{};
+    return `<div class="card"><div class="top"><b>${esc(kunder[k].namn)}</b><button class="link del" type="button" data-kdel="${k}">Ta bort</button></div>
+    <div class="prices" style="margin-top:-6px"><label class="pricebox">Timpris<input class="rate" type="number" min="0" step="10" inputmode="decimal" placeholder="kr/h" data-kp="${k}" data-f="pris" value="${pr.pris||""}"></label>
+    <label class="pricebox">OB-tillägg 22–06<input class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="kr/h" data-kp="${k}" data-f="ob" value="${pr.ob||""}"></label></div>
+    <small>${(()=>{const n=Object.values(employees).filter(e=>!e.inaktiv&&(e.kunder||[]).includes(k)).map(e=>e.namn);return n.length?"Förare: "+esc(n.join(", ")):"Ingen förare kopplad än"})()}</small></div>`}).join(""):`<p class="empty">Inga uppdragsgivare än.</p>`;
+  $("kLista").querySelectorAll("[data-kp]").forEach(inp=>inp.onchange=()=>{
+    const k=inp.dataset.kp,kp={...(rates.kpris||{})};kp[k]={...prisFor(k),obTyp:(kp[k]&&kp[k].obTyp)||"kr",[inp.dataset.f]:num(inp.value)};
+    rates={...rates,kpris:kp};persistRates();inp.blur();render()});
   $("kLista").querySelectorAll("[data-kdel]").forEach(b=>b.onclick=async()=>{
     if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="Säker?";setTimeout(()=>{b.dataset.confirm="";b.textContent="Ta bort"},3000);return}
-    try{await db.doc("kunder/"+b.dataset.kdel).delete();toast("Kunden borttagen")}catch(e){toast("Kunde inte ta bort")}});
+    try{await db.doc("kunder/"+b.dataset.kdel).delete();toast("Uppdragsgivaren borttagen")}catch(e){toast("Kunde inte ta bort")}});
 }
+
+/* ---------- förare (bara ägaren) ---------- */
+function chipsHtml(valda,attr){return kundLista().map(k=>`<label><input type="checkbox" ${attr}="${k}"${valda.includes(k)?" checked":""}>${esc(kunder[k].namn)}</label>`).join("")||`<span class="sub" style="font-size:.85rem">Lägg till uppdragsgivare nedan först.</span>`}
+function renderForare(){
+  const f=$("fKunder"),valda=[...f.querySelectorAll("input:checked")].map(x=>x.dataset.nk);
+  const sig=kundLista().join(",");if(f.dataset.sig!==sig){f.innerHTML=chipsHtml(valda,"data-nk");f.dataset.sig=sig}
+  const lista=$("fLista");if(lista.contains(document.activeElement))return;
+  const ids=Object.keys(employees).filter(id=>id!==uid).sort((a,b)=>sv(nameOf(a),nameOf(b)));
+  lista.innerHTML=ids.length?ids.map(id=>{const e=employees[id];
+    return `<div class="card"><div class="top"><b>${esc(e.namn||"Okänd")}${e.inaktiv?` <span class="tag off">Inaktiv</span>`:""}</b><small>${esc(e.epost||"")}</small></div>
+      <div class="chips">${chipsHtml(e.kunder||[],"data-fk")}</div>
+      <div class="btns">${e.epost?`<button class="link" type="button" data-reset="${esc(e.epost)}">Skicka mejl om nytt lösenord</button>`:""}<button class="link${e.inaktiv?"":" del"}" type="button" data-inaktiv="${id}">${e.inaktiv?"Aktivera igen":"Inaktivera"}</button></div></div>`}).join(""):`<p class="empty">Inga förare inlagda än.</p>`;
+  lista.querySelectorAll(".card").forEach((card,n)=>{const id=ids[n];
+    card.querySelectorAll("[data-fk]").forEach(cb=>cb.onchange=async()=>{
+      const nya=[...card.querySelectorAll("[data-fk]:checked")].map(x=>x.dataset.fk);
+      try{await db.doc("tid/"+id).set({kunder:nya},{merge:true});toast("Sparat")}catch(e){toast("Kunde inte spara")}});});
+  lista.querySelectorAll("[data-reset]").forEach(b=>b.onclick=async()=>{try{await auth.sendPasswordResetEmail(b.dataset.reset);toast("Mejl skickat till "+b.dataset.reset)}catch(e){toast("Kunde inte skicka mejlet")}});
+  lista.querySelectorAll("[data-inaktiv]").forEach(b=>b.onclick=async()=>{const id=b.dataset.inaktiv,nu=!!employees[id].inaktiv;
+    if(!nu&&b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="Säker? Hen kan inte stämpla längre";setTimeout(()=>{b.dataset.confirm="";b.textContent="Inaktivera"},4000);return}
+    try{await db.doc("tid/"+id).set({inaktiv:!nu},{merge:true});toast(nu?"Föraren är aktiv igen":"Föraren är inaktiverad")}catch(e){toast("Kunde inte spara")}});
+}
+$("fForm").addEventListener("submit",async ev=>{
+  ev.preventDefault();err("fErr");err("fOk");
+  const namn=$("fNamn").value.trim(),epost=$("fEpost").value.trim(),losen=$("fLosen").value;
+  const valda=[...$("fKunder").querySelectorAll("input:checked")].map(x=>x.dataset.nk);
+  if(!namn)return err("fErr","Skriv förarens namn.");
+  if(!epost)return err("fErr","Skriv förarens e-post.");
+  if((losen||"").length<6)return err("fErr","Startlösenordet måste vara minst 6 tecken.");
+  $("fKnapp").disabled=true;
+  try{
+    // Skapa kontot i en separat instans så att du själv förblir inloggad
+    const app2=firebase.apps.find(a=>a.name==="skapa")||firebase.initializeApp(FIREBASE_CONFIG,"skapa");
+    const a2=app2.auth();await a2.setPersistence(firebase.auth.Auth.Persistence.NONE);
+    const c=await a2.createUserWithEmailAndPassword(epost,losen);const nyUid=c.user.uid;await a2.signOut();
+    await db.doc("tid/"+nyUid).set({namn,epost,kunder:valda,skapad:new Date().toISOString()});
+    if($("fMejl").checked){try{await auth.sendPasswordResetEmail(epost)}catch(e){}}
+    err("fOk",`Klart! ${namn} loggar in med ${epost} och lösenordet du valde, på ${location.origin+location.pathname}`);
+    ["fNamn","fEpost","fLosen"].forEach(i=>$(i).value="");$("fKunder").querySelectorAll("input").forEach(x=>x.checked=false);$("fMejl").checked=false;
+  }catch(x){err("fErr",x.code==="auth/email-already-in-use"?"Det finns redan ett konto med den e-posten.":authFel(x.code))}
+  finally{$("fKnapp").disabled=false}
+});
+
+/* ---------- adminmeny ---------- */
+function visaFlik(t){document.body.dataset.tab=t;store.set("ihmt-flik",t);
+  document.querySelectorAll("[data-tabknapp]").forEach(b=>b.classList.toggle("on",b.dataset.tabknapp===t));window.scrollTo(0,0)}
+document.querySelectorAll("[data-tabknapp]").forEach(b=>b.onclick=()=>visaFlik(b.dataset.tabknapp));
+
 $("kForm").addEventListener("submit",async ev=>{
   ev.preventDefault();const n=$("kNamn").value.trim();if(!n)return;
   if(kundLista().some(k=>kunder[k].namn.toLowerCase()===n.toLowerCase()))return toast("Den kunden finns redan");
@@ -752,13 +841,16 @@ function startaApp(u){
   isOwner=(u.email||"").toLowerCase()===AGARE_EPOST.toLowerCase()&&u.emailVerified;
   $("status").textContent=u.email||"";show("logout",true);show("login",false);
   show("verify",(u.email||"").toLowerCase()===AGARE_EPOST.toLowerCase()&&!u.emailVerified);
-  show("periodPanel",true);show("listPanel",true);show("sumPanel",!isOwner);show("notisPanel",isOwner);show("invPanel",isOwner);show("kundPanel",isOwner);show("payPanel",isOwner);
+  show("periodPanel",true);show("listPanel",true);show("sumPanel",!isOwner);show("notisPanel",isOwner);show("invPanel",isOwner);show("kundPanel",isOwner);show("forarePanel",isOwner);
+  if(isOwner){show("adminNav",true);visaFlik(store.get("ihmt-flik")||"stampla")}show("payPanel",isOwner);
 
   db.doc("tid/"+uid).onSnapshot(s=>{
     const d=s.exists?s.data():null;
     myName=(d&&d.namn)||"";
     if(d)employees[uid]=d;
-    show("setup",!myName);show("clock",!!myName);
+    const inaktiv=!!(d&&d.inaktiv);
+    show("setup",!myName&&!inaktiv);show("clock",!!myName&&!inaktiv);
+    if(inaktiv)$("status").textContent="Ditt konto är inaktiverat. Kontakta Isak.";
     if(!myName&&!$("myName").value)$("myName").value=store.get("ihmt-nyttnamn")||"";
     render();
   },()=>{});
