@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>IHMT Tidrapport</title>
+<meta name="theme-color" content="#1f5f8b">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="ikoner/icon-192.png">
+<link rel="apple-touch-icon" href="ikoner/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="IHMT Tid">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#f1f4f6; --surface:#ffffff; --fg:#141c22; --muted:#5a6873; --line:#d6dee4;
+  --accent:#1f5f8b; --accent-fg:#ffffff; --accent-soft:#e1ecf4; --danger:#b4372b; --money:#1d6b4a;
+  --live:#c2410c; --live-soft:#fdebdc; --snow:#0b4f7c; --snow-soft:#dcefff;
+  --font-ui:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-num:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f151a; --surface:#172028; --fg:#e3eaf0; --muted:#8fa0ad; --line:#26323c;
+  --accent:#6bb0e0; --accent-fg:#0b1218; --accent-soft:#1b2c3a; --danger:#ef7a6c; --money:#6cc79a;
+  --live:#fb9a5b; --live-soft:#3a2416; --snow:#9fd3ff; --snow-soft:#12293b; color-scheme:dark}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:15px;line-height:1.5;
+  padding:calc(24px + env(safe-area-inset-top,0px)) 16px calc(56px + env(safe-area-inset-bottom,0px))}
+[hidden]{display:none!important}
+.wrap{max-width:860px;margin:0 auto;display:grid;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 16px}
+h1{font-size:1.6rem;margin:0;letter-spacing:-.01em}
+h2{font-size:1.05rem;margin:0}
+.sub{color:var(--muted);margin:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+label{display:grid;gap:4px;font-size:.76rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);min-width:0}
+input,select{font:inherit;font-size:16px;text-transform:none;letter-spacing:0;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;width:100%;min-width:0}
+input.time{font-family:var(--font-num)}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font:inherit;font-weight:600;border-radius:7px;padding:9px 16px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+button.stop{background:var(--live);border-color:var(--live);color:#fff}
+button.big{font-size:1.15rem;padding:16px 28px;border-radius:10px;min-width:220px}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.link{border:none;background:none;padding:4px 6px;color:var(--muted);font-weight:500}
+button.link:hover{color:var(--fg)}
+button.link.del:hover{color:var(--danger)}
+.err{color:var(--danger);font-size:.85rem;margin:8px 0 0}
+.ok{color:var(--money);font-size:.85rem;margin:8px 0 0}
+.clock{display:grid;gap:16px}
+.clock .who{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:baseline}
+.running{background:var(--live-soft);border-radius:10px;padding:16px;display:grid;gap:4px}
+.running .lbl{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--live);font-size:.85rem;text-transform:uppercase;letter-spacing:.05em}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--live);animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.running .elapsed{font-family:var(--font-num);font-size:2rem;font-weight:600;line-height:1.2}
+.running .since{color:var(--muted)}
+.endrow{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.endrow label{width:130px}
+details summary{cursor:pointer;color:var(--muted);font-size:.9rem}
+details[open] summary{margin-bottom:12px}
+.notice{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.notice:last-child{border-bottom:none}
+.notice .ic{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.notice.live .ic{background:var(--live);animation:pulse 1.6s infinite}
+.notice b{font-weight:600}
+.notice small{display:block;color:var(--muted);font-size:.8rem}
+.notice .h{font-family:var(--font-num);font-weight:600;white-space:nowrap}
+.badge{display:inline-block;background:var(--live);color:#fff;border-radius:99px;font-size:.75rem;padding:0 8px;margin-left:6px;vertical-align:2px}
+.period{display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between}
+.period .grid{flex:1 1 280px;min-width:0;grid-template-columns:repeat(auto-fit,minmax(min(140px,100%),1fr))}
+.stats{display:flex;flex-wrap:wrap;gap:12px 36px;margin:18px 0 4px}
+.stat .n{font-family:var(--font-num);font-size:1.55rem;font-weight:600;white-space:nowrap}
+.stat .l{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.prices{display:flex;flex-wrap:wrap;gap:4px 28px}
+.pricebox{display:flex;align-items:center;gap:10px;margin-top:14px}
+.tbl{overflow-x:auto;margin-top:16px}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;font-weight:600;padding:6px 8px 6px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+td.num,th.num{text-align:right;font-family:var(--font-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+td.num small{display:block;color:var(--muted);font-size:.74rem}
+td.money{color:var(--money);font-weight:600}
+tfoot td{font-weight:700;border-bottom:none}
+.rate{width:6rem;padding:5px 7px;font-family:var(--font-num);text-align:right;font-size:.88rem}
+.owner-note{font-size:.8rem;color:var(--muted);margin:10px 0 0}
+.day h4{display:flex;justify-content:space-between;gap:8px;font-size:.85rem;margin:18px 0 4px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.day h4 span{font-family:var(--font-num);color:var(--muted);font-weight:400}
+.row{display:grid;grid-template-columns:7.4rem minmax(0,1fr) auto auto;gap:4px 14px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.row .t{font-family:var(--font-num);font-size:.9rem}
+.row .t small{display:block;color:var(--muted);font-family:var(--font-ui);font-size:.74rem}
+.row .w{min-width:0;overflow-wrap:anywhere}
+.row .w b{font-weight:600}
+.row .w small{display:block;color:var(--muted);font-size:.82rem}
+.tag{display:inline-block;background:var(--accent-soft);border-radius:4px;padding:0 6px;font-size:.76rem;margin-left:4px}
+.tag.live{background:var(--live-soft);color:var(--live)}
+.tag.warn{background:var(--danger);color:#fff}
+.row .h{font-family:var(--font-num);font-weight:600;text-align:right;white-space:nowrap}
+.empty{color:var(--muted);text-align:center;padding:20px 8px;margin:0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:8px;font-size:.9rem;max-width:calc(100% - 32px);z-index:10}
+textarea{font:inherit;font-size:16px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;width:100%;min-height:76px;resize:vertical;text-transform:none;letter-spacing:0}
+textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.check{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:.92rem;font-weight:500;color:var(--fg)}
+.check input{width:auto}
+.comment{display:block;margin-top:3px;font-size:.86rem;color:var(--fg);font-style:italic;overflow-wrap:anywhere}
+.inv{width:100%;border-collapse:collapse;margin-top:14px}
+.inv td{padding:9px 8px 9px 0}
+.inv tr.sum td{font-weight:700;border-top:2px solid var(--fg);border-bottom:none;font-size:1.05rem}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--accent-soft)}
+tr.click td:first-child{color:var(--accent);font-weight:600}
+tr.on td{background:var(--accent-soft)}
+.breakdown{display:grid;gap:6px;margin-top:14px;font-family:var(--font-num);font-size:.92rem}
+.breakdown div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.breakdown .tot{font-weight:700;font-size:1.1rem;border-bottom:none;color:var(--money)}
+/* login */
+.login{max-width:420px;width:100%;margin:0 auto;display:grid;gap:14px}
+.login form{display:grid;gap:12px}
+.tabs{display:flex;gap:6px}
+.tabs button{flex:1}
+.tabs button.on{background:var(--accent-soft);border-color:var(--accent)}
+/* snow */
+.snow{background:var(--snow-soft);border:1px solid var(--snow);border-radius:10px;padding:14px 16px;display:grid;gap:2px}
+.snow b{color:var(--snow);font-size:1.05rem}
+.snowbtn{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--snow-soft);border-radius:10px;padding:12px 14px}
+.snowbtn span{flex:1 1 200px;font-size:.9rem}
+@media (max-width:560px){
+  .row{grid-template-columns:minmax(0,1fr) auto}
+  .row .h{grid-row:1;grid-column:2}
+  .row .acts{grid-column:2;grid-row:2;justify-self:end}
+  button.big{width:100%}
+}
+@media (prefers-reduced-motion:reduce){.dot,.notice.live .ic{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>IHMT Tidrapport</h1>
+      <p class="sub">Snöröjning: stämpla in och ut.</p>
+    </div>
+    <div class="btns"><p class="sub" id="status">Ansluter…</p><button class="link" type="button" id="logout" hidden>Logga ut</button></div>
+  </header>
+
+  <section class="snow" id="snoBanner" hidden><b id="snoTitel"></b><span id="snoText"></span></section>
+
+  <!-- Inloggning -->
+  <section class="panel login" id="login" hidden>
+    <div class="tabs"><button type="button" id="tabIn" class="on">Logga in</button><button type="button" id="tabNy">Skapa konto</button></div>
+    <form id="loginForm" novalidate>
+      <label id="namnRad" hidden>Förnamn<input id="lNamn" autocomplete="given-name"></label>
+      <label>E-post<input id="lEpost" type="email" autocomplete="email" inputmode="email"></label>
+      <label>Lösenord<input id="lLosen" type="password" autocomplete="current-password" minlength="6"></label>
+      <button class="primary" type="submit" id="lKnapp">Logga in</button>
+      <button class="link" type="button" id="glomt">Glömt lösenordet?</button>
+    </form>
+    <p class="err" id="lErr" hidden></p><p class="ok" id="lOk" hidden></p>
+  </section>
+
+  <section class="panel" id="verify" hidden>
+    <h2>Bekräfta din e-post</h2>
+    <p class="sub" style="margin:4px 0 12px">Ägarvyn (faktura, löner, alla pass) låses upp när du har klickat på länken i mejlet vi skickade. Ladda om sidan efteråt.</p>
+    <div class="btns"><button type="button" id="resend">Skicka mejlet igen</button><button type="button" onclick="location.reload()">Jag har bekräftat</button></div>
+  </section>
+
+  <section class="panel" id="setup" hidden>
+    <h2>Vad heter du?</h2>
+    <p class="sub" style="margin:4px 0 14px">Namnet visas för Isak när du avslutar ett pass.</p>
+    <form id="setupForm" class="btns" novalidate>
+      <input id="myName" autocomplete="given-name" placeholder="Förnamn" style="max-width:260px">
+      <button class="primary" type="submit">Spara</button>
+    </form>
+    <p class="err" id="setupErr" hidden></p>
+  </section>
+
+  <section class="panel clock" id="clock" hidden>
+    <div class="who"><h2 id="hello">Hej</h2><button class="link" type="button" id="rename">Byt namn</button></div>
+    <div class="snowbtn" id="snoPa" hidden><span>❄️ Få en notis 12 timmar innan snö eller halka.</span><button class="primary" type="button" id="snoKnapp">Slå på snölarm</button></div>
+    <div id="idle" class="grid">
+      <label>Typ av arbete<input id="typ" list="typList" autocomplete="off" placeholder="Plogning (valfritt)"></label>
+      <label>Område / adress<input id="omrade" autocomplete="off" placeholder="Valfritt"></label>
+    </div>
+    <div id="idleBtn"><button class="primary big" type="button" id="startBtn">Starta pass</button></div>
+    <div id="active" hidden>
+      <div class="running">
+        <span class="lbl"><span class="dot"></span>Pass pågår</span>
+        <span class="elapsed" id="elapsed">0 h 0 min</span>
+        <span class="since" id="since"></span>
+      </div>
+      <div style="display:grid;gap:12px;margin-top:14px">
+        <label>Hur gick jobbet? Gick något sönder?<textarea id="endKommentar" placeholder="T.ex. Allt gick bra. Plogade hela området, halt vid infarten."></textarea></label>
+        <label class="check"><input type="checkbox" id="endSkada">Något gick sönder eller behöver åtgärdas</label>
+        <div class="endrow">
+          <label>Rast (min)<input id="endRast" type="number" min="0" step="5" value="0"></label>
+          <button class="stop big" type="button" id="stopBtn">Avsluta pass</button>
+        </div>
+      </div>
+    </div>
+    <p class="err" id="clockErr" hidden></p>
+    <details id="manual">
+      <summary>Glömt att stämpla? Lägg till pass i efterhand</summary>
+      <form id="mForm" novalidate>
+        <div class="grid">
+          <label>Datum<input id="mDatum" type="date"></label>
+          <label>Från<input id="mStart" class="time" inputmode="numeric" placeholder="04:30" maxlength="5"></label>
+          <label>Till<input id="mSlut" class="time" inputmode="numeric" placeholder="09:15" maxlength="5"></label>
+          <label>Rast (min)<input id="mRast" type="number" min="0" step="5" value="0"></label>
+          <label>Typ av arbete<input id="mTyp" list="typList" autocomplete="off"></label>
+          <label>Område / adress<input id="mOmrade" autocomplete="off"></label>
+        </div>
+        <div style="display:grid;gap:10px;margin-top:12px">
+          <label>Hur gick jobbet? Gick något sönder?<textarea id="mKommentar"></textarea></label>
+          <label class="check"><input type="checkbox" id="mSkada">Något gick sönder eller behöver åtgärdas</label>
+        </div>
+        <p class="err" id="mErr" hidden></p>
+        <div class="btns" style="margin-top:14px">
+          <button class="primary" type="submit" id="mSave">Spara pass</button>
+          <button type="button" id="mCancel">Avbryt</button>
+          <span class="sub" id="mCalc"></span>
+        </div>
+      </form>
+    </details>
+    <datalist id="typList"><option value="Plogning"><option value="Sandning"><option value="Saltning"><option value="Snöskottning"><option value="Snöröjning tak"><option value="Bortforsling snö"></datalist>
+  </section>
+
+  <section class="panel" id="notisPanel" hidden>
+    <div class="period"><h2>Notiser<span class="badge" id="badge" hidden></span></h2><button type="button" id="markRead" hidden>Markera som lästa</button></div>
+    <div id="notiser" style="margin-top:8px"></div>
+  </section>
+
+  <section class="panel" id="periodPanel" hidden>
+    <div class="period">
+      <h2>Period</h2>
+      <div class="grid" style="max-width:560px">
+        <label>Visa<select id="preset"></select></label>
+        <label>Från<input id="pFrom" type="date"></label>
+        <label>Till<input id="pTo" type="date"></label>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="invPanel" hidden>
+    <h2>Faktura till uppdragsgivaren</h2>
+    <div class="prices">
+      <label class="pricebox">Timpris<input id="pris" class="rate" type="number" min="0" step="10" inputmode="decimal" placeholder="kr/h"></label>
+      <label class="pricebox">OB-tillägg 22–06<input id="ob" class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="0"><select id="obTyp" style="width:auto;padding:5px 7px;font-size:.88rem"><option value="kr">kr/h extra</option><option value="pct">% av timpris</option></select></label>
+    </div>
+    <div class="tbl"><table class="inv" id="tInv"></table></div>
+    <div class="btns" style="margin-top:16px"><button type="button" id="export" hidden>Exportera perioden till Excel (CSV)</button></div>
+  </section>
+
+  <section class="panel" id="payPanel" hidden>
+    <h2>Personal och lön</h2>
+    <p class="sub" style="font-size:.85rem">Tryck på en person för att se timmar och bruttolön.</p>
+    <div class="tbl"><table id="tPerson"></table></div>
+  </section>
+
+  <section class="panel" id="personPanel" hidden>
+    <div class="period"><h2 id="pName"></h2><button type="button" id="pClose">Stäng</button></div>
+    <div class="stats">
+      <div class="stat"><div class="n" id="pNorm"></div><div class="l">Vanlig tid 06–22</div></div>
+      <div class="stat"><div class="n" id="pOb"></div><div class="l">OB-tid 22–06</div></div>
+      <div class="stat"><div class="n" id="pTot"></div><div class="l">Totalt</div></div>
+      <div class="stat"><div class="n" id="pCount"></div><div class="l">Pass</div></div>
+    </div>
+    <div class="prices">
+      <label class="pricebox">Timlön 06–22<input id="pLon" class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="kr/h"></label>
+      <label class="pricebox">OB-lön 22–06<input id="pObLon" class="rate" type="number" min="0" step="5" inputmode="decimal" placeholder="kr/h"></label>
+    </div>
+    <div class="breakdown" id="pBreak"></div>
+    <p class="owner-note">Bruttolön före skatt. Lämnar du OB-lönen tom används timlönen även för OB-tid. Bara du ser löner.</p>
+  </section>
+
+  <section class="panel" id="sumPanel" hidden>
+    <h2>Mina timmar</h2>
+    <div class="stats">
+      <div class="stat"><div class="n" id="sTime">0 h 0 min</div><div class="l">Total tid</div></div>
+      <div class="stat"><div class="n" id="sCount">0</div><div class="l">Pass</div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="listPanel" hidden>
+    <div class="period">
+      <h2 id="listTitle">Mina pass</h2>
+      <label style="min-width:180px" data-owner hidden>Visa person<select id="fPerson"><option value="">Alla</option></select></label>
+    </div>
+    <div id="list"></div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<script>
+/* ===== INSTÄLLNINGAR – fyll i från Firebase Console (se INSTALLERA.md) ===== */
+const FIREBASE_CONFIG = {
+  apiKey: "KLISTRA_IN",
+  authDomain: "KLISTRA_IN.firebaseapp.com",
+  projectId: "KLISTRA_IN",
+  storageBucket: "KLISTRA_IN.appspot.com",
+  messagingSenderId: "KLISTRA_IN",
+  appId: "KLISTRA_IN"
+};
+const VAPID_KEY = "KLISTRA_IN_VAPID_NYCKEL";
+const AGARE_EPOST = "ihallstrom08@gmail.com"; // samma adress som i firestore.rules
+/* ========================================================================== */
+
+const MONTHS=["januari","februari","mars","april","maj","juni","juli","augusti","september","oktober","november","december"];
+const DAYS=["Söndag","Måndag","Tisdag","Onsdag","Torsdag","Fredag","Lördag"];
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,"0");
+const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const hhmm=d=>pad(d.getHours())+":"+pad(d.getMinutes());
+const hm=min=>`${Math.floor(min/60)} h ${min%60} min`;
+const dec=min=>(min/60).toFixed(2).replace(".",",");
+const kr=v=>Math.round(v).toLocaleString("sv-SE")+" kr";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const sv=(a,b)=>a.localeCompare(b,"sv");
+const num=v=>{const n=parseFloat(String(v).replace(",","."));return isFinite(n)&&n>0?n:0};
+function show(id,on){$(id).hidden=!on}
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2800)}
+function err(id,t){$(id).textContent=t||"";$(id).hidden=!t}
+function dayLabel(d){const t=new Date(),y=new Date();y.setDate(t.getDate()-1);
+  if(iso(d)===iso(t))return "idag";if(iso(d)===iso(y))return "igår";return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}`}
+
+let db=null,auth=null,uid=null,isOwner=false,authUser=null;
+let myName="",employees={},passes={},subs={};
+let rates={pris:0,ob:0,obTyp:"kr",lon:{},obLon:{}},ratesRef=null,ratesSaving=Promise.resolve();
+let settingsRef=null,lastSeen=null,editing=null,knownDone=null,selPerson="";
+
+function parseTime(s){
+  s=(s||"").trim().replace(/[.,;]/g,":");let h,m;
+  if(/^\d{1,2}$/.test(s)){h=+s;m=0}
+  else if(/^\d{3,4}$/.test(s)){h=+s.slice(0,-2);m=+s.slice(-2)}
+  else{const r=s.match(/^(\d{1,2}):(\d{2})$/);if(!r)return null;h=+r[1];m=+r[2]}
+  if(m>59||h>24||(h===24&&m>0))return null;return h*60+m;
+}
+const fmtT=min=>pad(Math.floor(min/60))+":"+pad(min%60);
+const minutesBetween=(a,b,rast)=>Math.max(0,Math.round((new Date(b)-new Date(a))/60000)-(rast||0));
+
+/* OB-minuter (22:00–06:00) i ett pass; rasten dras proportionellt */
+function obMinutes(p){
+  if(!p.start||!p.slut)return 0;
+  const a=new Date(p.start).getTime(),b=new Date(p.slut).getTime();
+  let ob=0,all=0;
+  for(let t=a;t<b;t+=60000){all++;const h=new Date(t).getHours();if(h>=22||h<6)ob++}
+  if(!all)return 0;
+  return Math.round(ob*(p.minuter||0)/all);
+}
+const obRate=()=>rates.obTyp==="pct"?(rates.pris||0)*(rates.ob||0)/100:(rates.ob||0);
+const wageParts=(id,min,obMin)=>{const l=rates.lon[id]||0,o=rates.obLon[id]||l;return {vanlig:l*(min-obMin)/60,ob:o*obMin/60}};
+const wageOf=(id,min,obMin)=>{const w=wageParts(id,min,obMin);return w.vanlig+w.ob};
+const invoiceOf=(min,obMin)=>(rates.pris||0)*min/60+obRate()*obMin/60;
+const nameOf=id=>(employees[id]&&employees[id].namn)||"Okänd";
+const passCol=id=>db.collection("tid/"+id+"/pass");
+const allPasses=()=>Object.entries(passes).flatMap(([id,list])=>list.map(p=>({...p,uid:id,namn:nameOf(id)})));
+const myActive=()=>(passes[uid]||[]).find(p=>p.status==="pagar");
+
+/* ---------- inloggning ---------- */
+let nyttKonto=false;
+function setTab(ny){nyttKonto=ny;$("tabIn").classList.toggle("on",!ny);$("tabNy").classList.toggle("on",ny);show("namnRad",ny);
+  $("lKnapp").textContent=ny?"Skapa konto":"Logga in";$("lLosen").autocomplete=ny?"new-password":"current-password";err("lErr");err("lOk")}
+$("tabIn").onclick=()=>setTab(false);$("tabNy").onclick=()=>setTab(true);
+const authFel=c=>({"auth/invalid-email":"Ogiltig e-postadress.","auth/missing-password":"Skriv ett lösenord.","auth/weak-password":"Lösenordet måste vara minst 6 tecken.",
+  "auth/email-already-in-use":"Det finns redan ett konto med den e-posten. Logga in i stället.","auth/invalid-credential":"Fel e-post eller lösenord.",
+  "auth/wrong-password":"Fel e-post eller lösenord.","auth/user-not-found":"Fel e-post eller lösenord.","auth/too-many-requests":"För många försök. Vänta en stund.",
+  "auth/network-request-failed":"Ingen anslutning. Försök igen."}[c]||"Något gick fel. Försök igen.");
+$("loginForm").addEventListener("submit",async ev=>{
+  ev.preventDefault();err("lErr");err("lOk");
+  const e=$("lEpost").value.trim(),p=$("lLosen").value,n=$("lNamn").value.trim();
+  if(nyttKonto&&!n)return err("lErr","Skriv ditt förnamn.");
+  $("lKnapp").disabled=true;
+  try{
+    if(nyttKonto){
+      store.set("ihmt-nyttnamn",n);
+      const c=await auth.createUserWithEmailAndPassword(e,p);
+      await db.doc("tid/"+c.user.uid).set({namn:n,epost:e});
+      if(e.toLowerCase()===AGARE_EPOST.toLowerCase())await c.user.sendEmailVerification();
+    }else await auth.signInWithEmailAndPassword(e,p);
+  }catch(x){err("lErr",authFel(x.code))}
+  finally{$("lKnapp").disabled=false}
+});
+$("glomt").onclick=async()=>{
+  const e=$("lEpost").value.trim();if(!e)return err("lErr","Skriv din e-post först.");
+  try{await auth.sendPasswordResetEmail(e);err("lErr");err("lOk","Vi har skickat ett mejl med en länk för att välja nytt lösenord.")}catch(x){err("lErr",authFel(x.code))}
+};
+$("logout").onclick=async()=>{await auth.signOut();location.reload()};
+$("resend").onclick=async()=>{try{await authUser.sendEmailVerification();toast("Mejlet skickat")}catch(e){toast("Vänta en stund och försök igen")}};
+
+/* ---------- snölarm ---------- */
+async function pushStods(){
+  try{return "Notification" in window&&"serviceWorker" in navigator&&await Promise.resolve(firebase.messaging.isSupported())}catch(e){return false}
+}
+async function sparaToken(fraga){
+  if(!(await pushStods())){if(fraga)toast(/iPhone|iPad/.test(navigator.userAgent)?"Lägg först till appen på hemskärmen (Dela → Lägg till på hemskärmen) och öppna den därifrån.":"Notiser stöds inte i den här webbläsaren.");return false}
+  if(fraga){const s=await Notification.requestPermission();if(s!=="granted"){toast("Notiser nekades. Slå på dem i telefonens inställningar.");return false}}
+  else if(Notification.permission!=="granted")return false;
+  const reg=await navigator.serviceWorker.ready;
+  const token=await firebase.messaging().getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
+  if(!token)return false;
+  await db.collection("pushTokens").doc(token).set({token,uid,namn:myName||"",uppdaterad:firebase.firestore.FieldValue.serverTimestamp()});
+  store.set("ihmt-snolarm","pa");return true;
+}
+async function renderSnoKnapp(){
+  const pa=store.get("ihmt-snolarm")==="pa"&&"Notification" in window&&Notification.permission==="granted";
+  show("snoPa",!pa);
+}
+$("snoKnapp").onclick=async()=>{
+  $("snoKnapp").disabled=true;
+  try{if(await sparaToken(true)){toast("Snölarm påslaget ❄️");renderSnoKnapp()}}
+  catch(e){console.error(e);toast("Kunde inte slå på snölarmet. Försök igen.")}
+  finally{$("snoKnapp").disabled=false}
+};
+function visaSnovarning(d){
+  const aktiv=d&&d.aktiv&&(!d.giltigTill||new Date(d.giltigTill)>new Date());
+  show("snoBanner",!!aktiv);
+  if(aktiv){$("snoTitel").textContent=d.title||"Snölarm";$("snoText").textContent=d.body||""}
+}
+
+/* ---------- stämpelklocka ---------- */
+function renderClock(){
+  $("hello").textContent="Hej "+myName;
+  const a=myActive();
+  show("idle",!a);show("idleBtn",!a);show("active",!!a);
+  if(a){const s=new Date(a.start);
+    $("since").textContent=`Startade ${dayLabel(s)} kl ${hhmm(s)}${a.typ?" · "+a.typ:""}${a.omrade?" · "+a.omrade:""}`;tick()}
+}
+function tick(){const a=myActive();if(a)$("elapsed").textContent=hm(minutesBetween(a.start,new Date()))}
+setInterval(tick,20000);
+
+$("startBtn").onclick=async()=>{
+  if(myActive())return;
+  const now=new Date();$("startBtn").disabled=true;err("clockErr");
+  try{
+    await passCol(uid).add({status:"pagar",start:now.toISOString(),datum:iso(now),slut:null,rastMin:0,minuter:0,
+      typ:$("typ").value.trim(),omrade:$("omrade").value.trim()});
+    store.set("ihmt-typ",$("typ").value.trim());
+    toast("Passet startade kl "+hhmm(now));
+  }catch(e){err("clockErr","Kunde inte starta passet. Kontrollera anslutningen och försök igen.")}
+  finally{$("startBtn").disabled=false}
+};
+$("stopBtn").onclick=async()=>{
+  const a=myActive();if(!a)return;
+  const now=new Date(),rast=Math.max(0,Math.round(+$("endRast").value||0));
+  if(rast>0&&rast>=Math.round((now-new Date(a.start))/60000))return err("clockErr","Rasten är längre än passet.");
+  const kommentar=$("endKommentar").value.trim(),skada=$("endSkada").checked;
+  if(!kommentar){err("clockErr","Skriv en kort kommentar om hur jobbet gick innan du avslutar.");$("endKommentar").focus();return}
+  $("stopBtn").disabled=true;err("clockErr");
+  try{
+    const min=minutesBetween(a.start,now,rast);
+    await passCol(uid).doc(a.id).update({status:"klar",slut:now.toISOString(),rastMin:rast,minuter:min,avslutad:now.toISOString(),kommentar,skada});
+    $("endRast").value=0;$("endKommentar").value="";$("endSkada").checked=false;toast(`Passet avslutat: ${hm(min)}`);
+  }catch(e){err("clockErr","Kunde inte avsluta passet. Försök igen.")}
+  finally{$("stopBtn").disabled=false}
+};
+
+/* ---------- efterhand / ändra ---------- */
+function mCompute(){
+  const d=$("mDatum").value,s=parseTime($("mStart").value),e=parseTime($("mSlut").value),r=Math.max(0,Math.round(+$("mRast").value||0));
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||s===null||e===null||s===e)return null;
+  const start=new Date(d+"T00:00");start.setMinutes(s);
+  const end=new Date(d+"T00:00");end.setMinutes(e);if(e<s)end.setDate(end.getDate()+1);
+  const min=minutesBetween(start,end,r);
+  return min>0?{start,end,r,min,over:e<s}:null;
+}
+function mUpdate(){const c=mCompute();$("mCalc").textContent=c?`${hm(c.min)}${c.over?" · över midnatt":""}`:""}
+["mDatum","mStart","mSlut","mRast"].forEach(id=>$(id).addEventListener("input",mUpdate));
+["mStart","mSlut"].forEach(id=>$(id).addEventListener("blur",()=>{const v=parseTime($(id).value);if(v!==null)$(id).value=fmtT(v);mUpdate()}));
+function mReset(){editing=null;$("mDatum").value=iso(new Date());["mStart","mSlut","mTyp","mOmrade","mKommentar"].forEach(i=>$(i).value="");$("mSkada").checked=false;$("mRast").value=0;$("mSave").textContent="Spara pass";
+  $("manual").querySelector("summary").textContent="Glömt att stämpla? Lägg till pass i efterhand";err("mErr");mUpdate()}
+$("mCancel").onclick=()=>{mReset();$("manual").open=false};
+$("mForm").addEventListener("submit",async ev=>{
+  ev.preventDefault();
+  const c=mCompute();
+  if(!c)return err("mErr","Fyll i datum och från- och till-tid, t.ex. 04:30 och 09:15. Rasten måste vara kortare än passet.");
+  if(!$("mKommentar").value.trim())return err("mErr","Skriv en kort kommentar om hur jobbet gick.");
+  err("mErr");$("mSave").disabled=true;
+  const owner=editing?editing.uid:uid;
+  const data={status:"klar",start:c.start.toISOString(),slut:c.end.toISOString(),datum:iso(c.start),rastMin:c.r,minuter:c.min,
+    typ:$("mTyp").value.trim(),omrade:$("mOmrade").value.trim(),kommentar:$("mKommentar").value.trim(),skada:$("mSkada").checked,
+    avslutad:editing&&editing.avslutad?editing.avslutad:new Date().toISOString(),efterhand:editing?!!editing.efterhand:true};
+  try{
+    if(editing)await passCol(owner).doc(editing.id).set(data);else await passCol(owner).add(data);
+    toast(editing?"Passet uppdaterat":`Sparat: ${hm(c.min)}`);mReset();$("manual").open=false;
+  }catch(e){err("mErr","Kunde inte spara. Kontrollera anslutningen och försök igen.")}
+  finally{$("mSave").disabled=false}
+});
+function startEdit(id,owner){
+  const p=(passes[owner]||[]).find(x=>x.id===id);if(!p||p.status!=="klar")return;
+  editing={...p,uid:owner};
+  const s=new Date(p.start),e=new Date(p.slut);
+  $("mDatum").value=iso(s);$("mStart").value=hhmm(s);$("mSlut").value=hhmm(e);$("mRast").value=p.rastMin||0;$("mTyp").value=p.typ||"";$("mOmrade").value=p.omrade||"";$("mKommentar").value=p.kommentar||"";$("mSkada").checked=!!p.skada;
+  $("mSave").textContent="Spara ändringar";
+  $("manual").querySelector("summary").textContent="Ändra pass"+(owner!==uid?" för "+nameOf(owner):"");
+  $("manual").open=true;mUpdate();$("manual").scrollIntoView({behavior:"smooth",block:"center"});
+}
+async function del(id,owner,btn){
+  if(btn.dataset.confirm!=="1"){btn.dataset.confirm="1";btn.textContent="Säker?";setTimeout(()=>{btn.dataset.confirm="";btn.textContent="Ta bort"},3000);return}
+  try{await passCol(owner).doc(id).delete();toast("Passet borttaget")}catch(e){toast("Kunde inte ta bort passet")}
+}
+
+/* ---------- namn ---------- */
+$("setupForm").addEventListener("submit",async ev=>{
+  ev.preventDefault();const n=$("myName").value.trim();
+  if(!n)return err("setupErr","Skriv ditt namn.");
+  try{await db.doc("tid/"+uid).set({namn:n,epost:authUser.email||""},{merge:true});err("setupErr")}catch(e){err("setupErr","Kunde inte spara. Försök igen.")}
+});
+$("rename").onclick=()=>{$("myName").value=myName;show("setup",true);show("clock",false);$("myName").focus()};
+
+/* ---------- period ---------- */
+function presets(){
+  const t=new Date(),y=t.getFullYear(),m=t.getMonth(),sy=m>=6?y:y-1;
+  const last=(yy,mm)=>new Date(yy,mm+1,0);
+  return [
+    ["month",`Denna månad (${MONTHS[m]})`,new Date(y,m,1),last(y,m)],
+    ["prev",`Förra månaden (${MONTHS[(m+11)%12]})`,new Date(y,m-1,1),last(y,m-1)],
+    ["season",`Vintersäsong ${sy}/${String(sy+1).slice(2)}`,new Date(sy,9,1),new Date(sy+1,3,30)],
+    ["prevseason",`Vintersäsong ${sy-1}/${String(sy).slice(2)}`,new Date(sy-1,9,1),new Date(sy,3,30)],
+  ].map(([v,l,a,b])=>({v,l,from:iso(a),to:iso(b)}));
+}
+function initPeriod(){
+  const ps=presets(),pick=ps.find(p=>p.v===store.get("ihmt-preset"))||ps[0];
+  $("preset").innerHTML=ps.map(p=>`<option value="${p.v}">${p.l}</option>`).join("")+`<option value="custom">Eget datumintervall</option>`;
+  $("preset").value=pick.v;$("pFrom").value=pick.from;$("pTo").value=pick.to;
+}
+$("preset").addEventListener("change",()=>{const p=presets().find(x=>x.v===$("preset").value);if(p){$("pFrom").value=p.from;$("pTo").value=p.to}store.set("ihmt-preset",$("preset").value);render()});
+["pFrom","pTo"].forEach(id=>$(id).addEventListener("change",()=>{$("preset").value="custom";render()}));
+$("fPerson").addEventListener("change",()=>{selPerson=$("fPerson").value;render()});
+$("pClose").onclick=()=>{selPerson="";$("fPerson").value="";render()};
+function openPerson(id){selPerson=id;render();$("personPanel").scrollIntoView({behavior:"smooth",block:"start"})}
+function setRate(kind,id,val){const m={...rates[kind]},n=num(val);if(n)m[id]=n;else delete m[id];rates={...rates,[kind]:m};render();persistRates()}
+$("pLon").addEventListener("change",()=>selPerson&&setRate("lon",selPerson,$("pLon").value));
+$("pObLon").addEventListener("change",()=>selPerson&&setRate("obLon",selPerson,$("pObLon").value));
+
+/* ---------- rendering ---------- */
+function render(){
+  document.querySelectorAll("[data-owner]").forEach(el=>el.hidden=!isOwner);
+  if(!uid)return;
+  renderClock();
+  const a=$("pFrom").value||"0000",b=$("pTo").value||"9999";
+  const done=allPasses().filter(p=>p.status==="klar"&&p.datum>=a&&p.datum<=b).map(p=>({...p,ob:obMinutes(p)}));
+  const total=done.reduce((s,p)=>s+p.minuter,0);
+  $("sTime").textContent=hm(total);$("sCount").textContent=done.length;
+  $("listTitle").textContent=isOwner?(selPerson?`${nameOf(selPerson)}s pass`:"Alla pass"):"Mina pass";
+
+  if(isOwner){
+    renderNotices();
+    const totOb=done.reduce((s,p)=>s+p.ob,0);
+    if(document.activeElement!==$("pris"))$("pris").value=rates.pris||"";
+    if(document.activeElement!==$("ob"))$("ob").value=rates.ob||"";
+    $("obTyp").value=rates.obTyp==="pct"?"pct":"kr";
+    const base=(rates.pris||0)*total/60,obKr=obRate()*totOb/60,net=base+obKr;
+    $("tInv").innerHTML=`<tbody>
+      <tr><td>Vanlig tid 06–22</td><td class="num">${hm(total-totOb)}<small>${dec(total-totOb)} h</small></td><td></td><td></td></tr>
+      <tr><td>OB-tid 22–06</td><td class="num">${hm(totOb)}<small>${dec(totOb)} h</small></td><td></td><td></td></tr>
+      <tr><td><b>Alla timmar</b></td><td class="num"><b>${hm(total)}</b><small>${dec(total)} h</small></td><td class="num">× ${rates.pris?kr(rates.pris)+"/h":"–"}</td><td class="num money">${kr(base)}</td></tr>
+      <tr><td>OB-tillägg</td><td class="num">${dec(totOb)} h</td><td class="num">× ${obRate()?kr(obRate())+"/h":"–"}</td><td class="num money">${kr(obKr)}</td></tr>
+      <tr class="sum"><td>Att fakturera</td><td></td><td></td><td class="num">${kr(net)}</td></tr></tbody>`;
+    $("export").hidden=!done.length;
+    const per={};Object.keys(employees).forEach(id=>per[id]={min:0,n:0,ob:0});
+    done.forEach(p=>{(per[p.uid]=per[p.uid]||{min:0,n:0,ob:0});per[p.uid].min+=p.minuter;per[p.uid].ob+=p.ob;per[p.uid].n++});
+    const ids=Object.keys(per).sort((x,y)=>sv(nameOf(x),nameOf(y)));let pay=0;
+    const body=ids.map(id=>{const w=wageOf(id,per[id].min,per[id].ob);pay+=w;
+      return `<tr class="click${id===selPerson?" on":""}" data-person="${id}" tabindex="0"><td>${esc(nameOf(id))} ›</td><td class="num">${per[id].n}</td><td class="num">${hm(per[id].min)}${per[id].ob?`<small>varav OB ${hm(per[id].ob)}</small>`:""}</td><td class="num money">${w?kr(w):rates.lon[id]?"0 kr":"Ange lön"}</td></tr>`}).join("");
+    $("tPerson").innerHTML=ids.length?`<thead><tr><th>Person</th><th class="num">Pass</th><th class="num">Tid</th><th class="num">Bruttolön</th></tr></thead><tbody>${body}</tbody>`+(ids.length>1?`<tfoot><tr><td>Totalt</td><td class="num">${done.length}</td><td class="num">${hm(total)}</td><td class="num money">${kr(pay)}</td></tr></tfoot>`:""):`<tbody><tr><td class="empty" style="border:none">Ingen personal har registrerat sig än.</td></tr></tbody>`;
+    $("tPerson").querySelectorAll("[data-person]").forEach(tr=>{tr.onclick=()=>openPerson(tr.dataset.person);tr.onkeydown=e=>{if(e.key==="Enter")openPerson(tr.dataset.person)}});
+    show("personPanel",!!selPerson);
+    if(selPerson){
+      const st=per[selPerson]||{min:0,n:0,ob:0},wp=wageParts(selPerson,st.min,st.ob),l=rates.lon[selPerson]||0,o=rates.obLon[selPerson]||0;
+      $("pName").textContent=nameOf(selPerson);
+      $("pNorm").textContent=hm(st.min-st.ob);$("pOb").textContent=hm(st.ob);$("pTot").textContent=hm(st.min);$("pCount").textContent=st.n;
+      if(document.activeElement!==$("pLon"))$("pLon").value=l||"";
+      if(document.activeElement!==$("pObLon")){$("pObLon").value=o||"";$("pObLon").placeholder=l?String(l):"kr/h"}
+      $("pBreak").innerHTML=`<div><span>Vanlig tid ${dec(st.min-st.ob)} h × ${l?kr(l):"– kr"}</span><span>${kr(wp.vanlig)}</span></div>
+        <div><span>OB-tid ${dec(st.ob)} h × ${(o||l)?kr(o||l):"– kr"}</span><span>${kr(wp.ob)}</span></div>
+        <div class="tot"><span>Bruttolön</span><span>${kr(wp.vanlig+wp.ob)}</span></div>`;
+    }
+    const all=Object.keys(employees).sort((x,y)=>sv(nameOf(x),nameOf(y)));
+    $("fPerson").innerHTML=`<option value="">Alla</option>`+all.map(id=>`<option value="${id}"${id===selPerson?" selected":""}>${esc(nameOf(id))}</option>`).join("");
+  }
+
+  const fp=isOwner?selPerson:"";
+  const rows=allPasses().filter(p=>(p.status==="pagar"||(p.datum>=a&&p.datum<=b))&&(!fp||p.uid===fp)).sort((x,y)=>y.start.localeCompare(x.start));
+  if(!rows.length){$("list").innerHTML=`<p class="empty">Inga pass i den här perioden. Tryck på Starta pass när du börjar köra.</p>`;return}
+  const days={};rows.forEach(p=>(days[p.datum]=days[p.datum]||[]).push(p));
+  $("list").innerHTML=Object.keys(days).sort().reverse().map(d=>{
+    const dt=new Date(d+"T12:00"),g=days[d],sum=g.reduce((s,p)=>s+(p.minuter||0),0);
+    return `<div class="day"><h4>${DAYS[dt.getDay()]} ${dt.getDate()} ${MONTHS[dt.getMonth()]}<span>${hm(sum)}</span></h4>`+g.map(p=>{
+      const s=new Date(p.start),e=p.slut?new Date(p.slut):null,live=p.status==="pagar";
+      return `<div class="row"><div class="t">${hhmm(s)}–${e?hhmm(e):"pågår"}<small>${live?"&nbsp;":p.rastMin?p.rastMin+" min rast":"ingen rast"}${e&&iso(e)!==iso(s)?" · över midnatt":""}</small></div>
+      <div class="w">${isOwner?`<b>${esc(p.namn)}</b>`:""}${live?`<span class="tag live">Pågår</span>`:""}${p.typ?`<span class="tag">${esc(p.typ)}</span>`:""}${p.skada?`<span class="tag warn">Skada</span>`:""}<small>${p.omrade?esc(p.omrade):""}</small>${p.kommentar?`<span class="comment">”${esc(p.kommentar)}”</span>`:""}</div>
+      <div class="h">${live?hm(minutesBetween(p.start,new Date())):hm(p.minuter)}${isOwner&&!live&&obMinutes(p)?`<small style="display:block;font-weight:400;color:var(--muted);font-size:.74rem">${hm(p.minuter-obMinutes(p))} + ${hm(obMinutes(p))} OB</small>`:""}</div>
+      <div class="acts">${live?"":`<button class="link" type="button" data-edit="${p.id}" data-uid="${p.uid}">Ändra</button>`}<button class="link del" type="button" data-del="${p.id}" data-uid="${p.uid}">Ta bort</button></div></div>`}).join("")+`</div>`;
+  }).join("");
+  $("list").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>startEdit(b.dataset.edit,b.dataset.uid));
+  $("list").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>del(b.dataset.del,b.dataset.uid,b));
+}
+
+/* ---------- ägarens notiser ---------- */
+function renderNotices(){
+  const others=allPasses().filter(p=>p.uid!==uid);
+  const live=others.filter(p=>p.status==="pagar").sort((x,y)=>x.start.localeCompare(y.start));
+  const ended=others.filter(p=>p.status==="klar"&&p.avslutad).sort((x,y)=>y.avslutad.localeCompare(x.avslutad));
+  const fresh=ended.filter(p=>!lastSeen||p.avslutad>lastSeen);
+  const shown=fresh.length?fresh:ended.slice(0,3);
+  show("badge",fresh.length>0);$("badge").textContent=fresh.length;show("markRead",fresh.length>0);
+  document.title=(fresh.length?`(${fresh.length}) `:"")+"IHMT Tidrapport";
+  const item=(p,isLive)=>{const s=new Date(p.start),e=p.slut?new Date(p.slut):null;
+    return `<div class="notice${isLive?" live":""}"><span class="ic"></span><div><b>${esc(p.namn)}</b> ${isLive?"kör just nu":"har avslutat sitt pass"}<small>${isLive?`Startade ${dayLabel(s)} kl ${hhmm(s)}`:`${dayLabel(s)} ${hhmm(s)}–${hhmm(e)}${p.efterhand?" · inlagt i efterhand":""}`}</small>${!isLive&&p.skada?`<span class="tag warn" style="margin-left:0">Något gick sönder</span>`:""}${!isLive&&p.kommentar?`<span class="comment">”${esc(p.kommentar)}”</span>`:""}</div><span class="h">${isLive?hm(minutesBetween(p.start,new Date())):hm(p.minuter)}</span></div>`};
+  $("notiser").innerHTML=(live.map(p=>item(p,true)).join("")+(!fresh.length&&shown.length?`<p class="sub" style="font-size:.8rem;margin:10px 0 2px">Inga nya. Senast avslutade:</p>`:"")+shown.map(p=>item(p,false)).join(""))
+    ||`<p class="empty">När någon startar eller avslutar ett pass syns det här.</p>`;
+}
+$("markRead").onclick=async()=>{
+  lastSeen=new Date().toISOString();render();
+  try{await settingsRef.set({senastSett:lastSeen},{merge:true})}catch(e){toast("Kunde inte spara")}
+};
+function announce(){
+  if(!isOwner)return;
+  const done=allPasses().filter(p=>p.uid!==uid&&p.status==="klar");
+  if(knownDone)done.filter(p=>!knownDone.has(p.uid+"/"+p.id)&&!p.efterhand).forEach(p=>toast(`${p.namn} har avslutat sitt pass: ${hm(p.minuter)}${p.skada?" · något gick sönder":""}`));
+  knownDone=new Set(done.map(p=>p.uid+"/"+p.id));
+}
+
+/* ---------- priser (bara ägaren) ---------- */
+function persistRates(){if(!ratesRef)return;ratesSaving=ratesSaving.then(()=>ratesRef.set(rates)).then(()=>toast("Sparat")).catch(()=>toast("Kunde inte spara"))}
+$("pris").addEventListener("change",()=>{rates={...rates,pris:num($("pris").value)};render();persistRates()});
+$("ob").addEventListener("change",()=>{rates={...rates,ob:num($("ob").value)};render();persistRates()});
+$("obTyp").addEventListener("change",()=>{rates={...rates,obTyp:$("obTyp").value};render();persistRates()});
+
+/* ---------- export ---------- */
+$("export").onclick=()=>{
+  const a=$("pFrom").value,b=$("pTo").value;
+  const rows=allPasses().filter(p=>p.status==="klar"&&p.datum>=a&&p.datum<=b).sort((x,y)=>x.start.localeCompare(y.start));
+  const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const c2=v=>v.toFixed(2).replace(".",",");
+  const lines=[["Datum","Veckodag","Person","Typ av arbete","Område/adress","Från","Till","Rast (min)","Tid totalt","Timmar totalt (decimal)","Vanlig tid 06-22","OB-tid 22-06","OB-timmar (decimal)","Timpris","OB-tillägg (kr/h)","Att fakturera","Timlön 06-22","OB-lön 22-06","Bruttolön","Skada","Kommentar"].join(";")];
+  rows.forEach(p=>{const s=new Date(p.start),e=new Date(p.slut),pr=rates.pris||0,l=rates.lon[p.uid]||0,ol=rates.obLon[p.uid]||0,ob=obMinutes(p),w=wageOf(p.uid,p.minuter,ob),inv=invoiceOf(p.minuter,ob);
+    lines.push([p.datum,DAYS[s.getDay()],p.namn,p.typ,p.omrade,hhmm(s),hhmm(e),p.rastMin||0,hm(p.minuter),dec(p.minuter),hm(p.minuter-ob),hm(ob),dec(ob),pr||"",obRate()?c2(obRate()):"",inv?c2(inv):"",l||"",ol||"",w?c2(w):"",p.skada?"Ja":"",p.kommentar||""].map(q).join(";"))});
+  const tot=rows.reduce((s,p)=>s+p.minuter,0),totOb=rows.reduce((s,p)=>s+obMinutes(p),0);
+  lines.push(["","","","","","","","Totalt",hm(tot),dec(tot),hm(tot-totOb),hm(totOb),dec(totOb),"","",c2(invoiceOf(tot,totOb))].join(";"));
+  const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`tidrapport_${a}_${b}.csv`;
+  document.body.appendChild(link);link.click();setTimeout(()=>{URL.revokeObjectURL(link.href);link.remove()},1000);
+};
+
+function watchPasses(id){
+  if(subs[id])return;
+  subs[id]=passCol(id).onSnapshot(snap=>{
+    passes[id]=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.start);
+    render();announce();
+  },()=>{});
+}
+
+/* ---------- start ---------- */
+function startaApp(u){
+  authUser=u;uid=u.uid;
+  isOwner=(u.email||"").toLowerCase()===AGARE_EPOST.toLowerCase()&&u.emailVerified;
+  $("status").textContent=u.email||"";show("logout",true);show("login",false);
+  show("verify",(u.email||"").toLowerCase()===AGARE_EPOST.toLowerCase()&&!u.emailVerified);
+  show("periodPanel",true);show("listPanel",true);show("sumPanel",!isOwner);show("notisPanel",isOwner);show("invPanel",isOwner);show("payPanel",isOwner);
+
+  db.doc("tid/"+uid).onSnapshot(s=>{
+    const d=s.exists?s.data():null;
+    myName=(d&&d.namn)||"";
+    if(d)employees[uid]=d;
+    show("setup",!myName);show("clock",!!myName);
+    if(!myName&&!$("myName").value)$("myName").value=store.get("ihmt-nyttnamn")||"";
+    render();
+  },()=>{});
+  watchPasses(uid);
+  db.doc("snolarm/aktuell").onSnapshot(s=>visaSnovarning(s.exists?s.data():null),()=>{});
+  renderSnoKnapp();
+  if(store.get("ihmt-snolarm")==="pa")sparaToken(false).catch(()=>{}); // förnya token tyst
+
+  if(isOwner){
+    db.collection("tid").onSnapshot(snap=>{snap.docs.forEach(d=>{employees[d.id]=d.data();watchPasses(d.id)});render()},()=>{});
+    ratesRef=db.doc("agare/priser");
+    ratesRef.onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&!s.metadata.hasPendingWrites){rates={pris:typeof d.pris==="number"?d.pris:0,ob:typeof d.ob==="number"?d.ob:0,obTyp:d.obTyp==="pct"?"pct":"kr",lon:{...(d.lon||{})},obLon:{...(d.obLon||{})}};render()}},()=>{});
+    settingsRef=db.doc("agare/installningar");
+    settingsRef.onSnapshot(s=>{const d=s.exists?s.data():null;if(d&&d.senastSett&&!s.metadata.hasPendingWrites){lastSeen=d.senastSett;render()}},()=>{});
+  }
+  render();
+}
+
+initPeriod();mReset();$("typ").value=store.get("ihmt-typ")||"";
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+try{
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db=firebase.firestore();
+  db.enablePersistence({synchronizeTabs:true}).catch(()=>{}); // fungerar även med dålig täckning
+  auth=firebase.auth();
+  auth.onAuthStateChanged(u=>{
+    if(u){if(!uid)startaApp(u)}
+    else{show("login",true);$("status").textContent="";show("logout",false)}
+  });
+}catch(e){
+  console.error(e);$("status").textContent="Firebase är inte inställt än – se INSTALLERA.md.";
+}
+</script>
+</body>
+</html>

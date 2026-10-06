@@ -1,0 +1,42 @@
+rules_version = '2';
+// Klistra in i Firebase Console → Firestore Database → Regler → Publicera
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function inloggad() { return request.auth != null; }
+    // Ägaren = Isak, och bara när e-posten är bekräftad
+    function agare() {
+      return inloggad()
+        && request.auth.token.email == 'ihallstrom08@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    function jag(uid) { return inloggad() && request.auth.uid == uid; }
+
+    // Varje person: namn + sina egna pass. Ägaren ser och kan ändra allt.
+    match /tid/{uid} {
+      allow read, write: if agare() || jag(uid);
+      match /pass/{passId} {
+        allow read, write: if agare() || jag(uid);
+      }
+    }
+    // Priser, löner och inställningar – bara ägaren
+    match /agare/{doc} {
+      allow read, write: if agare();
+    }
+
+    // Telefoner som slagit på snölarm
+    match /pushTokens/{token} {
+      allow create, update: if inloggad() && request.resource.data.uid == request.auth.uid;
+      allow read, delete: if false;
+    }
+
+    // Snövarningen som visas i appen – skrivs bara av servern
+    match /snolarm/aktuell {
+      allow read: if inloggad();
+      allow write: if false;
+    }
+    match /snolarm/status {
+      allow read, write: if false;
+    }
+  }
+}
