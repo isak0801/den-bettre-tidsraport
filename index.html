@@ -208,6 +208,7 @@ body[data-tab="stampla"] section.clock[data-tab]:not([hidden]){display:grid!impo
       <label id="kundRad" hidden>Plogar åt<select id="kund"></select></label>
       <label>Typ av arbete<input id="typ" list="typList" autocomplete="off" placeholder="Plogning (valfritt)"></label>
       <label>Område / adress<input id="omrade" autocomplete="off" placeholder="Valfritt"></label>
+      <label>Inringd kl<input id="inringd" class="time" inputmode="numeric" placeholder="06:30" maxlength="5"></label>
     </div>
     <div id="idleBtn"><button class="primary big" type="button" id="startBtn">Starta pass</button></div>
     <div id="active" hidden>
@@ -237,6 +238,7 @@ body[data-tab="stampla"] section.clock[data-tab]:not([hidden]){display:grid!impo
           <label id="mKundRad" hidden>Plogar åt<select id="mKund"></select></label>
           <label>Typ av arbete<input id="mTyp" list="typList" autocomplete="off"></label>
           <label>Område / adress<input id="mOmrade" autocomplete="off"></label>
+          <label>Inringd kl<input id="mInringd" class="time" inputmode="numeric" placeholder="06:30" maxlength="5"></label>
         </div>
         <div style="display:grid;gap:10px;margin-top:12px">
           <label>Hur gick jobbet? Gick något sönder?<textarea id="mKommentar"></textarea></label>
@@ -304,6 +306,7 @@ body[data-tab="stampla"] section.clock[data-tab]:not([hidden]){display:grid!impo
     <div class="tbl" id="kundSum"></div>
     <div class="prices" id="prisRad">
       <label class="pricebox">Timpris<input id="pris" class="rate" type="number" min="0" step="10" inputmode="decimal" placeholder="kr/h"></label>
+      <label class="pricebox">Utryckning per pass<input id="utryck" class="rate" inputmode="decimal" placeholder="1,5"> h</label>
     </div>
     <div class="tbl"><table class="inv" id="tInv"></table></div>
     <div class="btns" style="margin-top:16px"><button type="button" id="export" hidden>Exportera perioden till Excel (CSV)</button></div>
@@ -409,11 +412,28 @@ function obMinutes(p){return 0;
   return Math.round(ob*(p.minuter||0)/all);
 }
 /* Priser per kund (faller tillbaka på standardpriset) */
-const prisFor=k=>(k&&rates.kpris&&rates.kpris[k])||{pris:rates.pris||0,ob:rates.ob||0,obTyp:rates.obTyp||"kr"};
+const prisFor=k=>(k&&rates.kpris&&rates.kpris[k])||{pris:rates.pris||0,ob:0,obTyp:"kr",utryck:rates.utryck};
 const obRate=(k)=>{const p=prisFor(k);return p.obTyp==="pct"?(p.pris||0)*(p.ob||0)/100:(p.ob||0)};
 const wageParts=(id,min)=>({vanlig:(rates.lon[id]||0)*min/60,ob:0});
 const wageOf=(id,min,obMin)=>{const w=wageParts(id,min,obMin);return w.vanlig+w.ob};
-const invoiceOf=(min,obMin,k)=>(prisFor(k).pris||0)*min/60+obRate(k)*obMin/60;
+/* Utryckning: fakturerade timmar per pass utöver arbetad tid (standard 1,5 h) */
+const UTRYCK_STD=1.5;
+const utryckFor=k=>{const u=prisFor(k).utryck;return typeof u==="number"&&u>=0?u:UTRYCK_STD};
+const invoiceOf=(min,obMin,k,antal=0)=>(prisFor(k).pris||0)*(min/60+utryckFor(k)*antal);
+/* Inringningstid före start: klockslag hh:mm → datum (dagen innan om klockslaget är senare än start) */
+function inringdDatum(hhmmStr,start){const t=parseTime(hhmmStr);if(t===null)return null;const d=new Date(start);d.setHours(0,0,0,0);d.setMinutes(t);if(d>new Date(start))d.setDate(d.getDate()-1);return d}
+/* Fakturerade minuter för ett pass:
+   utryckning (t.ex. 1,5 h) + körtid efter att utryckningstiden gått ut, minus rast.
+   Utan inringningstid: utryckning + arbetad tid. */
+function faktMin(p,k){
+  const u=utryckFor(k)*60;
+  if(!p.inringd||!p.start||!p.slut)return u+(p.minuter||0);
+  const fran=Math.max(new Date(p.start).getTime(),new Date(p.inringd).getTime()+u*60000);
+  const kor=Math.max(0,Math.round((new Date(p.slut).getTime()-fran)/60000)-(p.rastMin||0));
+  return u+kor;
+}
+const timTal=v=>{v=String(v??"").trim().replace(",",".");if(v==="")return null;const n=parseFloat(v);return isFinite(n)&&n>=0?n:null};
+const decH=h=>(Math.round(h*100)/100).toFixed(2).replace(".",",");
 const nameOf=id=>(employees[id]&&employees[id].namn)||"Okänd";
 const kundNamn=k=>k?((kunder[k]&&kunder[k].namn)||"Borttagen kund"):"Ingen kund vald";
 const kundLista=()=>Object.keys(kunder).sort((a,b)=>sv(kunder[a].namn,kunder[b].namn));
@@ -510,20 +530,24 @@ function renderClock(){
   const lista=minaKunder(uid);show("kundRad",lista.length>0);
   const sig=lista.join(",");
   if($("kund").dataset.sig!==sig){fyllKundSelect($("kund"),lista,$("kund").value||store.get("ihmt-kund"));$("kund").dataset.sig=sig}
+  if(!editing&&$("mKund").dataset.sig!==sig){mKunder(uid);$("mKund").dataset.sig=sig}
   if(a){const s=new Date(a.start);
-    $("since").textContent=`Startade ${dayLabel(s)} kl ${hhmm(s)}${a.kund?" · "+kundNamn(a.kund):""}${a.typ?" · "+a.typ:""}${a.omrade?" · "+a.omrade:""}`;tick()}
+    $("since").textContent=`${a.inringd?`Inringd kl ${hhmm(new Date(a.inringd))} · `:""}Startade ${dayLabel(s)} kl ${hhmm(s)}${a.kund?" · "+kundNamn(a.kund):""}${a.typ?" · "+a.typ:""}${a.omrade?" · "+a.omrade:""}`;tick()}
 }
 function tick(){const a=myActive();if(a)$("elapsed").textContent=hm(minutesBetween(a.start,new Date()))}
 setInterval(tick,20000);
 
 $("startBtn").onclick=async()=>{
   if(myActive())return;
-  const kund=$("kund").value;
+  const kund=$("kund").value,inrTxt=$("inringd").value.trim();
+  if(inrTxt&&parseTime(inrTxt)===null){err("clockErr","Skriv inringningstiden som t.ex. 06:30.");return}
   if(kundLista().length&&!kund){err("clockErr","Välj vilket företag du plogar åt.");$("kund").focus();return}
   const now=new Date();$("startBtn").disabled=true;err("clockErr");
   try{
     await passCol(uid).add({status:"pagar",start:now.toISOString(),datum:iso(now),slut:null,rastMin:0,minuter:0,
-      kund:kund||"",typ:$("typ").value.trim(),omrade:$("omrade").value.trim()});
+      kund:kund||"",typ:$("typ").value.trim(),omrade:$("omrade").value.trim(),
+      inringd:inrTxt?inringdDatum(inrTxt,now).toISOString():null});
+    $("inringd").value="";
     store.set("ihmt-typ",$("typ").value.trim());store.set("ihmt-kund",kund);
     toast("Passet startade kl "+hhmm(now));
   }catch(e){err("clockErr","Kunde inte starta passet. Kontrollera anslutningen och försök igen.")}
@@ -551,13 +575,14 @@ function mCompute(){
   const start=new Date(d+"T00:00");start.setMinutes(s);
   const end=new Date(d+"T00:00");end.setMinutes(e);if(e<s)end.setDate(end.getDate()+1);
   const min=minutesBetween(start,end,r);
-  return min>0?{start,end,r,min,over:e<s}:null;
+  const it=$("mInringd").value.trim();if(it&&parseTime(it)===null)return null;
+  return min>0?{start,end,r,min,over:e<s,inringd:it?inringdDatum(it,start):null}:null;
 }
 function mUpdate(){const c=mCompute();$("mCalc").textContent=c?`${hm(c.min)}${c.over?" · över midnatt":""}`:""}
 ["mDatum","mStart","mSlut","mRast"].forEach(id=>$(id).addEventListener("input",mUpdate));
-["mStart","mSlut"].forEach(id=>$(id).addEventListener("blur",()=>{const v=parseTime($(id).value);if(v!==null)$(id).value=fmtT(v);mUpdate()}));
+["mStart","mSlut","mInringd","inringd"].forEach(id=>$(id).addEventListener("blur",()=>{const v=parseTime($(id).value);if(v!==null)$(id).value=fmtT(v);mUpdate()}));
 function mKunder(owner){const l=minaKunder(owner).slice();if(editing&&editing.kund&&kunder[editing.kund]&&!l.includes(editing.kund))l.push(editing.kund);show("mKundRad",l.length>0);fyllKundSelect($("mKund"),l,editing?editing.kund:($("kund").value||store.get("ihmt-kund")))}
-function mReset(){editing=null;mKunder(uid);$("mDatum").value=iso(new Date());["mStart","mSlut","mTyp","mOmrade","mKommentar"].forEach(i=>$(i).value="");$("mSkada").checked=false;$("mRast").value=0;$("mSave").textContent="Spara pass";
+function mReset(){editing=null;mKunder(uid);$("mDatum").value=iso(new Date());["mStart","mSlut","mTyp","mOmrade","mKommentar","mInringd"].forEach(i=>$(i).value="");$("mSkada").checked=false;$("mRast").value=0;$("mSave").textContent="Spara pass";
   $("manual").querySelector("summary").textContent="Glömt att stämpla? Lägg till pass i efterhand";err("mErr");mUpdate()}
 $("mCancel").onclick=()=>{mReset();$("manual").open=false};
 $("mForm").addEventListener("submit",async ev=>{
@@ -569,7 +594,7 @@ $("mForm").addEventListener("submit",async ev=>{
   err("mErr");$("mSave").disabled=true;
   const owner=editing?editing.uid:uid;
   const data={status:"klar",start:c.start.toISOString(),slut:c.end.toISOString(),datum:iso(c.start),rastMin:c.r,minuter:c.min,
-    kund:$("mKund").value||"",typ:$("mTyp").value.trim(),omrade:$("mOmrade").value.trim(),kommentar:$("mKommentar").value.trim(),skada:$("mSkada").checked,
+    kund:$("mKund").value||"",inringd:c.inringd?c.inringd.toISOString():null,typ:$("mTyp").value.trim(),omrade:$("mOmrade").value.trim(),kommentar:$("mKommentar").value.trim(),skada:$("mSkada").checked,
     avslutad:editing&&editing.avslutad?editing.avslutad:new Date().toISOString(),efterhand:editing?!!editing.efterhand:true};
   try{
     if(editing)await passCol(owner).doc(editing.id).set(data);else await passCol(owner).add(data);
@@ -581,7 +606,7 @@ function startEdit(id,owner){
   const p=(passes[owner]||[]).find(x=>x.id===id);if(!p||p.status!=="klar")return;
   editing={...p,uid:owner};mKunder(owner);
   const s=new Date(p.start),e=new Date(p.slut);
-  $("mDatum").value=iso(s);$("mStart").value=hhmm(s);$("mSlut").value=hhmm(e);$("mRast").value=p.rastMin||0;$("mTyp").value=p.typ||"";$("mOmrade").value=p.omrade||"";$("mKommentar").value=p.kommentar||"";$("mSkada").checked=!!p.skada;
+  $("mDatum").value=iso(s);$("mStart").value=hhmm(s);$("mInringd").value=p.inringd?hhmm(new Date(p.inringd)):"";$("mSlut").value=hhmm(e);$("mRast").value=p.rastMin||0;$("mTyp").value=p.typ||"";$("mOmrade").value=p.omrade||"";$("mKommentar").value=p.kommentar||"";$("mSkada").checked=!!p.skada;
   $("mSave").textContent="Spara ändringar";
   $("manual").querySelector("summary").textContent="Ändra pass"+(owner!==uid?" för "+nameOf(owner):"");
   $("manual").open=true;mUpdate();$("manual").scrollIntoView({behavior:"smooth",block:"center"});
@@ -646,9 +671,9 @@ function render(){
     const visaAlla=!selKund&&kundLista().length>0;
     show("kundSum",visaAlla);show("prisRad",!visaAlla);show("tInv",!visaAlla);
     if(visaAlla){
-      const sum={};done.forEach(p=>{const k=kOf(p);(sum[k]=sum[k]||{min:0,ob:0,n:0});sum[k].min+=p.minuter;sum[k].ob+=p.ob;sum[k].n++});
+      const sum={};done.forEach(p=>{const k=kOf(p);(sum[k]=sum[k]||{min:0,ob:0,n:0,fakt:0});sum[k].min+=p.minuter;sum[k].fakt+=faktMin(p,k==="_ingen"?"":k);sum[k].n++});
       const ks=Object.keys(sum).sort((x,y)=>sv(x==="_ingen"?"ö":kundNamn(x),y==="_ingen"?"ö":kundNamn(y)));let tot=0;
-      const rader=ks.map(k=>{const kk=k==="_ingen"?"":k,v=invoiceOf(sum[k].min,sum[k].ob,kk);tot+=v;
+      const rader=ks.map(k=>{const kk=k==="_ingen"?"":k,v=(prisFor(kk).pris||0)*sum[k].fakt/60;tot+=v;
         return `<tr class="click" data-kund="${k}" tabindex="0"><td>${esc(k==="_ingen"?"Ingen kund vald":kundNamn(k))} ›</td><td class="num">${sum[k].n}</td><td class="num">${hm(sum[k].min)}${sum[k].ob?`<small>varav OB ${hm(sum[k].ob)}</small>`:""}</td><td class="num money">${prisFor(kk).pris?kr(v):"Ange pris"}</td></tr>`}).join("");
       $("kundSum").innerHTML=ks.length?`<table><thead><tr><th>Kund</th><th class="num">Pass</th><th class="num">Tid</th><th class="num">Att fakturera</th></tr></thead><tbody>${rader}</tbody>${ks.length>1?`<tfoot><tr><td>Totalt</td><td></td><td class="num">${hm(total)}</td><td class="num money">${kr(tot)}</td></tr></tfoot>`:""}</table><p class="owner-note">Tryck på en kund för att se fakturaunderlaget och ställa in kundens pris.</p>`:`<p class="empty">Inga pass i den här perioden.</p>`;
       $("kundSum").querySelectorAll("[data-kund]").forEach(tr=>{tr.onclick=()=>{selKund=tr.dataset.kund;render()};tr.onkeydown=e=>{if(e.key==="Enter"){selKund=tr.dataset.kund;render()}}});
@@ -657,9 +682,13 @@ function render(){
     const fd=selKund?done.filter(p=>kOf(p)===selKund):done;
     const fMin=fd.reduce((s,p)=>s+p.minuter,0),totOb=fd.reduce((s,p)=>s+p.ob,0),pr=prisFor(kk);
     if(document.activeElement!==$("pris"))$("pris").value=pr.pris||"";
-    const base=(pr.pris||0)*fMin/60,obKr=obRate(kk)*totOb/60,net=base+obKr;
+    const ut=utryckFor(kk),utH=ut*fd.length,fH=fd.reduce((s,p)=>s+faktMin(p,kk),0)/60,korH=fH-utH,net=(pr.pris||0)*fH;
+    if(document.activeElement!==$("utryck"))$("utryck").value=String(ut).replace(".",",");
     $("tInv").innerHTML=`<tbody>
-      <tr><td><b>Timmar</b></td><td class="num"><b>${hm(fMin)}</b><small>${dec(fMin)} h</small></td><td class="num">× ${pr.pris?kr(pr.pris)+"/h":"–"}</td><td class="num money">${kr(base)}</td></tr>
+      <tr><td>Utryckning<small style="display:block;color:var(--muted)">${fd.length} pass × ${decH(ut)} h från inringning</small></td><td class="num">${decH(utH)} h</td><td></td><td></td></tr>
+      <tr><td>Körtid efter utryckningstiden</td><td class="num">${decH(korH)} h</td><td></td><td></td></tr>
+      <tr><td><b>Timmar att fakturera</b></td><td class="num"><b>${decH(fH)} h</b></td><td class="num">× ${pr.pris?kr(pr.pris)+"/h":"–"}</td><td class="num money">${kr(net)}</td></tr>
+      <tr><td colspan="4" class="owner-note" style="border:none">Förarnas arbetade tid (lön): ${hm(fMin)}</td></tr>
       <tr class="sum"><td>Att fakturera${selKund?" – "+esc(selKund==="_ingen"?"ingen kund vald":kundNamn(selKund)):""}</td><td></td><td></td><td class="num">${kr(net)}</td></tr></tbody>`;
     $("export").hidden=!fd.length;
     $("export").textContent=selKund?`Exportera ${selKund==="_ingen"?"pass utan kund":kundNamn(selKund)} till Excel (CSV)`:"Exportera perioden till Excel (CSV)";
@@ -692,7 +721,7 @@ function render(){
     const dt=new Date(d+"T12:00"),g=days[d],sum=g.reduce((s,p)=>s+(p.minuter||0),0);
     return `<div class="day"><h4>${DAYS[dt.getDay()]} ${dt.getDate()} ${MONTHS[dt.getMonth()]}<span>${hm(sum)}</span></h4>`+g.map(p=>{
       const s=new Date(p.start),e=p.slut?new Date(p.slut):null,live=p.status==="pagar";
-      return `<div class="row"><div class="t">${hhmm(s)}–${e?hhmm(e):"pågår"}<small>${live?"&nbsp;":p.rastMin?p.rastMin+" min rast":"ingen rast"}${e&&iso(e)!==iso(s)?" · över midnatt":""}</small></div>
+      return `<div class="row"><div class="t">${hhmm(s)}–${e?hhmm(e):"pågår"}<small>${live?"&nbsp;":p.rastMin?p.rastMin+" min rast":"ingen rast"}${e&&iso(e)!==iso(s)?" · över midnatt":""}${p.inringd?" · inringd "+hhmm(new Date(p.inringd)):""}</small></div>
       <div class="w">${isOwner?`<b>${esc(p.namn)}</b>`:""}${live?`<span class="tag live">Pågår</span>`:""}${p.kund?`<span class="tag">${esc(kundNamn(p.kund))}</span>`:""}${p.typ?`<span class="tag">${esc(p.typ)}</span>`:""}${p.skada?`<span class="tag warn">Skada</span>`:""}<small>${p.omrade?esc(p.omrade):""}</small>${p.kommentar?`<span class="comment">”${esc(p.kommentar)}”</span>`:""}</div>
       <div class="h">${live?hm(minutesBetween(p.start,new Date())):hm(p.minuter)}${isOwner&&!live&&obMinutes(p)?`<small style="display:block;font-weight:400;color:var(--muted);font-size:.74rem">${hm(p.minuter-obMinutes(p))} + ${hm(obMinutes(p))} OB</small>`:""}</div>
       <div class="acts">${live?"":`<button class="link" type="button" data-edit="${p.id}" data-uid="${p.uid}">Ändra</button>`}<button class="link del" type="button" data-del="${p.id}" data-uid="${p.uid}">Ta bort</button></div></div>`}).join("")+`</div>`;
@@ -736,6 +765,7 @@ function setPris(falt,varde){
   render();persistRates();
 }
 $("pris").addEventListener("change",()=>setPris("pris",num($("pris").value)));
+$("utryck").addEventListener("change",()=>{const v=timTal($("utryck").value);setPris("utryck",v===null?UTRYCK_STD:v)});
 $("fKund").addEventListener("change",()=>{selKund=$("fKund").value;render()});
 
 /* ---------- kunder (ägaren lägger till, alla ser namnen) ---------- */
@@ -744,10 +774,11 @@ function renderKunder(){
   if(fokus)return; // skriv inte över medan du skriver
   $("kLista").innerHTML=l.length?l.map(k=>{const pr=(rates.kpris&&rates.kpris[k])||{};
     return `<div class="card"><div class="top"><b>${esc(kunder[k].namn)}</b><button class="link del" type="button" data-kdel="${k}">Ta bort</button></div>
-    <div class="prices" style="margin-top:-6px"><label class="pricebox">Timpris<input class="rate" type="number" min="0" step="10" inputmode="decimal" placeholder="kr/h" data-kp="${k}" data-f="pris" value="${pr.pris||""}"></label></div>
+    <div class="prices" style="margin-top:-6px"><label class="pricebox">Timpris<input class="rate" type="number" min="0" step="10" inputmode="decimal" placeholder="kr/h" data-kp="${k}" data-f="pris" value="${pr.pris||""}"></label>
+    <label class="pricebox">Utryckning per pass<input class="rate" inputmode="decimal" placeholder="1,5" data-kp="${k}" data-f="utryck" value="${String(utryckFor(k)).replace(".",",")}"> h</label></div>
     <small>${(()=>{const n=Object.values(employees).filter(e=>!e.inaktiv&&(e.kunder||[]).includes(k)).map(e=>e.namn);return n.length?"Förare: "+esc(n.join(", ")):"Ingen förare kopplad än"})()}</small></div>`}).join(""):`<p class="empty">Inga uppdragsgivare än.</p>`;
   $("kLista").querySelectorAll("[data-kp]").forEach(inp=>inp.onchange=()=>{
-    const k=inp.dataset.kp,kp={...(rates.kpris||{})};kp[k]={...prisFor(k),obTyp:(kp[k]&&kp[k].obTyp)||"kr",[inp.dataset.f]:num(inp.value)};
+    const k=inp.dataset.kp,kp={...(rates.kpris||{})};kp[k]={...prisFor(k),obTyp:(kp[k]&&kp[k].obTyp)||"kr",[inp.dataset.f]:inp.dataset.f==="utryck"?(timTal(inp.value)??UTRYCK_STD):num(inp.value)};
     rates={...rates,kpris:kp};persistRates();inp.blur();render()});
   $("kLista").querySelectorAll("[data-kdel]").forEach(b=>b.onclick=async()=>{
     if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="Säker?";setTimeout(()=>{b.dataset.confirm="";b.textContent="Ta bort"},3000);return}
@@ -813,12 +844,12 @@ $("export").onclick=()=>{
   const rows=allPasses().filter(p=>p.status==="klar"&&p.datum>=a&&p.datum<=b&&(!selKund||kOf(p)===selKund)).sort((x,y)=>x.start.localeCompare(y.start));
   const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const c2=v=>v.toFixed(2).replace(".",",");
-  const lines=[["Datum","Veckodag","Kund","Person","Typ av arbete","Område/adress","Från","Till","Rast (min)","Tid totalt","Timmar (decimal)","Timpris","Att fakturera","Timlön","Bruttolön","Skada","Kommentar"].join(";")];
-  let totInv=0;
-  rows.forEach(p=>{const s=new Date(p.start),e=new Date(p.slut),kk=kOf(p)==="_ingen"?"":p.kund,pr=prisFor(kk).pris||0,l=rates.lon[p.uid]||0,w=wageOf(p.uid,p.minuter,0),inv=invoiceOf(p.minuter,0,kk);totInv+=inv;
-    lines.push([p.datum,DAYS[s.getDay()],kundNamn(kk),p.namn,p.typ,p.omrade,hhmm(s),hhmm(e),p.rastMin||0,hm(p.minuter),dec(p.minuter),pr||"",inv?c2(inv):"",l||"",w?c2(w):"",p.skada?"Ja":"",p.kommentar||""].map(q).join(";"))});
+  const lines=[["Datum","Veckodag","Kund","Person","Typ av arbete","Område/adress","Inringd","Från","Till","Rast (min)","Tid totalt","Arbetade timmar (decimal)","Utryckning (h)","Fakturerade timmar","Timpris","Att fakturera","Timlön","Bruttolön","Skada","Kommentar"].join(";")];
+  let totInv=0,totUt=0,totF=0;
+  rows.forEach(p=>{const s=new Date(p.start),e=new Date(p.slut),kk=kOf(p)==="_ingen"?"":p.kund,pr=prisFor(kk).pris||0,l=rates.lon[p.uid]||0,w=wageOf(p.uid,p.minuter,0),fm=faktMin(p,kk),inv=pr*fm/60,ut=utryckFor(kk);totInv+=inv;totUt+=ut;totF+=fm;
+    lines.push([p.datum,DAYS[s.getDay()],kundNamn(kk),p.namn,p.typ,p.omrade,p.inringd?hhmm(new Date(p.inringd)):"",hhmm(s),hhmm(e),p.rastMin||0,hm(p.minuter),dec(p.minuter),decH(ut),decH(fm/60),pr||"",inv?c2(inv):"",l||"",w?c2(w):"",p.skada?"Ja":"",p.kommentar||""].map(q).join(";"))});
   const tot=rows.reduce((s,p)=>s+p.minuter,0);
-  lines.push(["","","","","","","","","Totalt",hm(tot),dec(tot),"",c2(totInv)].join(";"));
+  lines.push(["","","","","","","","","","Totalt",hm(tot),dec(tot),decH(totUt),decH(totF/60),"",c2(totInv)].join(";"));
   const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const link=document.createElement("a");link.href=URL.createObjectURL(blob);const fn=selKund?(selKund==="_ingen"?"utan-kund":kundNamn(selKund)).replace(/[^\wåäöÅÄÖ-]+/g,"-")+"_":"";link.download=`tidrapport_${fn}${a}_${b}.csv`;
   document.body.appendChild(link);link.click();setTimeout(()=>{URL.revokeObjectURL(link.href);link.remove()},1000);
