@@ -1,8 +1,12 @@
 name: Snölarm
 
+# GitHubs schema hoppar ofta över körningar (blev var 4–7:e timme).
+# Därför kör varje omgång en loop som kollar vädret varje timme i ca 5 h
+# och startar sedan nästa omgång själv. Schemat nedan är bara en reserv
+# om kedjan skulle brytas.
 on:
   schedule:
-    - cron: '7 * * * *'   # varje timme (UTC)
+    - cron: '7 */3 * * *'
   workflow_dispatch:       # kör manuellt från fliken Actions
     inputs:
       test:
@@ -10,18 +14,50 @@ on:
         type: boolean
         default: false
 
+# Bara en omgång åt gången – en ny tar över från den gamla.
+concurrency:
+  group: snolarm
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write           # behövs för att starta nästa omgång
+
 jobs:
   kolla:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - run: npm install --no-save firebase-admin@12
-      - run: node kolla.mjs
+
+      - name: Testnotis
+        if: ${{ inputs.test }}
+        run: node kolla.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           APP_URL: ${{ vars.APP_URL }}
-          TEST: ${{ inputs.test && '1' || '0' }}
+          TEST: '1'
+
+      - name: Kolla vädret varje timme
+        run: |
+          slut=$(( $(date +%s) + 5*3600 ))
+          while true; do
+            echo "=== $(date -u '+%Y-%m-%d %H:%M') UTC ==="
+            node kolla.mjs || echo "Kollen misslyckades – försöker igen nästa timme."
+            nasta=$(( ( $(date +%s) / 3600 + 1 ) * 3600 + 420 ))   # nästa hel timme + 7 min
+            [ "$nasta" -ge "$slut" ] && break
+            sleep $(( nasta - $(date +%s) ))
+          done
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          APP_URL: ${{ vars.APP_URL }}
+
+      - name: Starta nästa omgång
+        if: ${{ !cancelled() }}
+        run: gh workflow run snolarm.yml --ref "${{ github.ref_name }}"
+        env:
+          GH_TOKEN: ${{ github.token }}

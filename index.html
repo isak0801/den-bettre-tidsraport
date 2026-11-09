@@ -60,10 +60,6 @@ button.link.del:hover{color:var(--danger)}
 .running .elapsed{font-family:var(--font-num);font-size:2rem;font-weight:600;line-height:1.2}
 .running .since{color:var(--muted)}
 .running .info{font-weight:600;color:var(--fg)}
-.utr{background:var(--snow-soft);border-radius:10px;padding:16px;display:grid;gap:4px}
-.utr .lbl{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--snow);font-size:.85rem;text-transform:uppercase;letter-spacing:.05em}
-.utr .lbl .dot{background:var(--snow)}
-.utr .elapsed{font-family:var(--font-num);font-size:2rem;font-weight:600;line-height:1.2}
 .endrow{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
 .endrow label{width:130px}
 details summary{cursor:pointer;color:var(--muted);font-size:.9rem}
@@ -213,26 +209,13 @@ body[data-tab="stampla"] section.clock[data-tab]:not([hidden]){display:grid!impo
       <label id="kundRad" hidden>Plogar åt<select id="kund"></select></label>
       <label>Typ av arbete<input id="typ" list="typList" autocomplete="off" placeholder="Plogning (valfritt)"></label>
       <label>Område / adress<input id="omrade" autocomplete="off" placeholder="Valfritt"></label>
-      <label>Inringd kl (om du glömt trycka)<input id="inringd" class="time" inputmode="numeric" placeholder="Nu" maxlength="5"></label>
     </div>
-    <div id="idleBtn"><button class="primary big" type="button" id="startBtn">📞 Inringd nu</button></div>
-    <div id="utryck" hidden>
-      <div class="utr">
-        <span class="lbl"><span class="dot"></span>Utryckning</span>
-        <span class="elapsed" id="utrKvar">1 h 30 min kvar</span>
-        <span class="since" id="utrInfo"></span>
-      </div>
-      <div class="btns" style="margin-top:14px">
-        <button class="primary big" type="button" id="korBtn">🚜 Börja köra</button>
-        <button class="link del" type="button" id="avbrytInr">Avbryt inringning</button>
-      </div>
-    </div>
+    <div id="idleBtn"><button class="primary big" type="button" id="startBtn">🚜 Börja köra</button></div>
     <div id="active" hidden>
       <div class="running">
         <span class="lbl"><span class="dot"></span>Pass pågår</span>
         <span class="elapsed" id="elapsed">0 h 0 min</span>
         <span class="since" id="since"></span>
-        <span class="info" id="faktInfo"></span>
       </div>
       <div style="display:grid;gap:12px;margin-top:14px">
         <label>Hur gick jobbet? Gick något sönder?<textarea id="endKommentar" placeholder="T.ex. Allt gick bra. Plogade hela området, halt vid infarten."></textarea></label>
@@ -255,7 +238,6 @@ body[data-tab="stampla"] section.clock[data-tab]:not([hidden]){display:grid!impo
           <label id="mKundRad" hidden>Plogar åt<select id="mKund"></select></label>
           <label>Typ av arbete<input id="mTyp" list="typList" autocomplete="off"></label>
           <label>Område / adress<input id="mOmrade" autocomplete="off"></label>
-          <label>Inringd kl<input id="mInringd" class="time" inputmode="numeric" placeholder="06:30" maxlength="5"></label>
         </div>
         <div style="display:grid;gap:10px;margin-top:12px">
           <label>Hur gick jobbet? Gick något sönder?<textarea id="mKommentar"></textarea></label>
@@ -437,18 +419,9 @@ const wageOf=(id,min,obMin)=>{const w=wageParts(id,min,obMin);return w.vanlig+w.
 const UTRYCK_STD=1.5;
 const utryckFor=k=>{const u=prisFor(k).utryck;return typeof u==="number"&&u>=0?u:UTRYCK_STD};
 const invoiceOf=(min,obMin,k,antal=0)=>(prisFor(k).pris||0)*(min/60+utryckFor(k)*antal);
-/* Inringningstid före start: klockslag hh:mm → datum (dagen innan om klockslaget är senare än start) */
-function inringdDatum(hhmmStr,start){const t=parseTime(hhmmStr);if(t===null)return null;const d=new Date(start);d.setHours(0,0,0,0);d.setMinutes(t);if(d>new Date(start))d.setDate(d.getDate()-1);return d}
-/* Fakturerade minuter för ett pass:
-   utryckning (t.ex. 1,5 h) + körtid efter att utryckningstiden gått ut, minus rast.
-   Utan inringningstid: utryckning + arbetad tid. */
-function faktMin(p,k){
-  const u=utryckFor(k)*60;
-  if(!p.inringd||!p.start||!p.slut)return u+(p.minuter||0);
-  const fran=Math.max(new Date(p.start).getTime(),new Date(p.inringd).getTime()+u*60000);
-  const kor=Math.max(0,Math.round((new Date(p.slut).getTime()-fran)/60000)-(p.rastMin||0));
-  return u+kor;
-}
+/* Fakturerade minuter för ett pass: utryckning (t.ex. 1,5 h) + körtid minus rast.
+   Förarna stämplar inte inringning – utryckningen läggs bara på fakturan. */
+const faktMin=(p,k)=>utryckFor(k)*60+(p.minuter||0);
 const timTal=v=>{v=String(v??"").trim().replace(",",".");if(v==="")return null;const n=parseFloat(v);return isFinite(n)&&n>=0?n:null};
 const decH=h=>(Math.round(h*100)/100).toFixed(2).replace(".",",");
 const nameOf=id=>(employees[id]&&employees[id].namn)||"Okänd";
@@ -462,7 +435,7 @@ function fyllKundSelect(sel,lista,valt){
 }
 const passCol=id=>db.collection("tid/"+id+"/pass");
 const allPasses=()=>Object.entries(passes).flatMap(([id,list])=>list.map(p=>({...p,uid:id,namn:nameOf(id)})));
-const myActive=()=>(passes[uid]||[]).find(p=>p.status==="pagar"||p.status==="inringd");
+const myActive=()=>(passes[uid]||[]).find(p=>p.status==="pagar");
 
 /* ---------- inloggning ---------- */
 let nyttKonto=false;
@@ -543,64 +516,35 @@ function visaSnovarning(d){senasteVader=d;visaVaderRad(d);
 function renderClock(){
   $("hello").textContent="Hej "+myName;
   const a=myActive();
-  const kor=a&&a.status==="pagar",inr=a&&a.status==="inringd";
-  show("idle",!a);show("idleBtn",!a);show("active",!!kor);show("utryck",!!inr);
+  show("idle",!a);show("idleBtn",!a);show("active",!!a);
   const lista=minaKunder(uid);show("kundRad",lista.length>0);
   const sig=lista.join(",");
   if($("kund").dataset.sig!==sig){fyllKundSelect($("kund"),lista,$("kund").value||store.get("ihmt-kund"));$("kund").dataset.sig=sig}
   if(!editing&&$("mKund").dataset.sig!==sig){mKunder(uid);$("mKund").dataset.sig=sig}
-  if(kor){const s=new Date(a.start);
-    $("since").textContent=`${a.inringd?`Inringd kl ${hhmm(new Date(a.inringd))} · `:""}Började köra ${dayLabel(s)} kl ${hhmm(s)}${a.kund?" · "+kundNamn(a.kund):""}${a.typ?" · "+a.typ:""}${a.omrade?" · "+a.omrade:""}`}
-  if(inr)$("utrInfo").textContent=`Inringd kl ${hhmm(new Date(a.inringd))}${a.kund?" · "+kundNamn(a.kund):""} · Tryck "Börja köra" när du är på plats.`;
+  if(a){const s=new Date(a.start);
+    $("since").textContent=`Började köra ${dayLabel(s)} kl ${hhmm(s)}${a.kund?" · "+kundNamn(a.kund):""}${a.typ?" · "+a.typ:""}${a.omrade?" · "+a.omrade:""}`}
   tick();
 }
-/* När utryckningstiden tar slut för ett pass */
-const utrSlut=p=>new Date(new Date(p.inringd).getTime()+utryckFor(p.kund)*3600e3);
 function tick(){
-  const a=myActive();if(!a)return;const nu=new Date();
-  if(a.status==="inringd"){
-    const kvar=Math.max(0,Math.round((utrSlut(a)-nu)/60000));
-    $("utrKvar").textContent=kvar>0?`${hm(kvar)} kvar`:"Utryckningstiden är slut";
-    return;
-  }
-  $("elapsed").textContent=hm(minutesBetween(a.start,nu));
-  if(a.inringd){
-    const slut=utrSlut(a),kvar=Math.round((slut-nu)/60000);
-    if(kvar>0)$("faktInfo").textContent=`Utryckningstid kvar: ${hm(kvar)} (till ${hhmm(slut)})`;
-    else{const fran=new Date(Math.max(slut,new Date(a.start)));$("faktInfo").textContent=`Faktureras: ${kortH(utryckFor(a.kund))} h utryckning + ${hm(minutesBetween(fran,nu))} sedan ${hhmm(fran)}`}
-  }else $("faktInfo").textContent="";
+  const a=myActive();if(!a)return;
+  $("elapsed").textContent=hm(minutesBetween(a.start,new Date()));
 }
 const kortH=h=>decH(h).replace(/,00$/,"").replace(/(,\d)0$/,"$1");
 setInterval(()=>{tick();if(isOwner)renderNotices()},15000);
 
-$("inringd").addEventListener("input",()=>{const v=parseTime($("inringd").value);$("startBtn").textContent=v!==null?`📞 Inringd kl ${fmtT(v)}`:"📞 Inringd nu"});
 $("startBtn").onclick=async()=>{
   if(myActive())return;
-  const kund=$("kund").value,inrTxt=$("inringd").value.trim();
-  if(inrTxt&&parseTime(inrTxt)===null){err("clockErr","Skriv inringningstiden som t.ex. 06:30, eller lämna tomt för nu.");return}
+  const kund=$("kund").value;
   if(kundLista().length&&!kund){err("clockErr","Välj vilket företag du plogar åt.");$("kund").focus();return}
-  const now=new Date(),inr=inrTxt?inringdDatum(inrTxt,now):now;
+  const now=new Date();
   $("startBtn").disabled=true;err("clockErr");
   try{
-    await passCol(uid).add({status:"inringd",inringd:inr.toISOString(),start:null,datum:iso(inr),slut:null,rastMin:0,minuter:0,
+    await passCol(uid).add({status:"pagar",start:now.toISOString(),datum:iso(now),slut:null,rastMin:0,minuter:0,
       kund:kund||"",typ:$("typ").value.trim(),omrade:$("omrade").value.trim()});
-    $("inringd").value="";$("startBtn").textContent="📞 Inringd nu";
     store.set("ihmt-typ",$("typ").value.trim());store.set("ihmt-kund",kund);
-    toast("Inringd kl "+hhmm(inr)+" – utryckningen har startat");
+    toast("Du kör sedan kl "+hhmm(now));
   }catch(e){err("clockErr","Kunde inte spara. Kontrollera anslutningen och försök igen.")}
   finally{$("startBtn").disabled=false}
-};
-$("korBtn").onclick=async()=>{
-  const a=myActive();if(!a||a.status!=="inringd")return;
-  const now=new Date();$("korBtn").disabled=true;err("clockErr");
-  try{await passCol(uid).doc(a.id).update({status:"pagar",start:now.toISOString(),datum:iso(now)});toast("Du kör sedan kl "+hhmm(now))}
-  catch(e){err("clockErr","Kunde inte spara. Försök igen.")}
-  finally{$("korBtn").disabled=false}
-};
-$("avbrytInr").onclick=async()=>{
-  const a=myActive(),b=$("avbrytInr");if(!a||a.status!=="inringd")return;
-  if(b.dataset.confirm!=="1"){b.dataset.confirm="1";b.textContent="Säker? Tryck igen";setTimeout(()=>{b.dataset.confirm="";b.textContent="Avbryt inringning"},3000);return}
-  try{await passCol(uid).doc(a.id).delete();toast("Inringningen är borttagen")}catch(e){toast("Kunde inte ta bort")}
 };
 $("stopBtn").onclick=async()=>{
   const a=myActive();if(!a)return;
@@ -624,26 +568,25 @@ function mCompute(){
   const start=new Date(d+"T00:00");start.setMinutes(s);
   const end=new Date(d+"T00:00");end.setMinutes(e);if(e<s)end.setDate(end.getDate()+1);
   const min=minutesBetween(start,end,r);
-  const it=$("mInringd").value.trim();if(!it||parseTime(it)===null)return null;
-  return min>0?{start,end,r,min,over:e<s,inringd:it?inringdDatum(it,start):null}:null;
+  return min>0?{start,end,r,min,over:e<s}:null;
 }
 function mUpdate(){const c=mCompute();$("mCalc").textContent=c?`${hm(c.min)}${c.over?" · över midnatt":""}`:""}
 ["mDatum","mStart","mSlut","mRast"].forEach(id=>$(id).addEventListener("input",mUpdate));
-["mStart","mSlut","mInringd","inringd"].forEach(id=>$(id).addEventListener("blur",()=>{const v=parseTime($(id).value);if(v!==null)$(id).value=fmtT(v);mUpdate()}));
+["mStart","mSlut"].forEach(id=>$(id).addEventListener("blur",()=>{const v=parseTime($(id).value);if(v!==null)$(id).value=fmtT(v);mUpdate()}));
 function mKunder(owner){const l=minaKunder(owner).slice();if(editing&&editing.kund&&kunder[editing.kund]&&!l.includes(editing.kund))l.push(editing.kund);show("mKundRad",l.length>0);fyllKundSelect($("mKund"),l,editing?editing.kund:($("kund").value||store.get("ihmt-kund")))}
-function mReset(){editing=null;mKunder(uid);$("mDatum").value=iso(new Date());["mStart","mSlut","mTyp","mOmrade","mKommentar","mInringd"].forEach(i=>$(i).value="");$("mSkada").checked=false;$("mRast").value=0;$("mSave").textContent="Spara pass";
+function mReset(){editing=null;mKunder(uid);$("mDatum").value=iso(new Date());["mStart","mSlut","mTyp","mOmrade","mKommentar"].forEach(i=>$(i).value="");$("mSkada").checked=false;$("mRast").value=0;$("mSave").textContent="Spara pass";
   $("manual").querySelector("summary").textContent="Glömt att stämpla? Lägg till pass i efterhand";err("mErr");mUpdate()}
 $("mCancel").onclick=()=>{mReset();$("manual").open=false};
 $("mForm").addEventListener("submit",async ev=>{
   ev.preventDefault();
   const c=mCompute();
-  if(!c)return err("mErr","Fyll i datum, inringd kl, och när du började och slutade köra (t.ex. 06:00, 07:00 och 10:00). Rasten måste vara kortare än passet.");
+  if(!c)return err("mErr","Fyll i datum och när du började och slutade köra (t.ex. 04:30 och 09:15). Rasten måste vara kortare än passet.");
   if(!$("mKommentar").value.trim())return err("mErr","Skriv en kort kommentar om hur jobbet gick.");
   if(kundLista().length&&!$("mKund").value)return err("mErr","Välj vilket företag passet gällde.");
   err("mErr");$("mSave").disabled=true;
   const owner=editing?editing.uid:uid;
   const data={status:"klar",start:c.start.toISOString(),slut:c.end.toISOString(),datum:iso(c.start),rastMin:c.r,minuter:c.min,
-    kund:$("mKund").value||"",inringd:c.inringd?c.inringd.toISOString():null,typ:$("mTyp").value.trim(),omrade:$("mOmrade").value.trim(),kommentar:$("mKommentar").value.trim(),skada:$("mSkada").checked,
+    kund:$("mKund").value||"",typ:$("mTyp").value.trim(),omrade:$("mOmrade").value.trim(),kommentar:$("mKommentar").value.trim(),skada:$("mSkada").checked,
     avslutad:editing&&editing.avslutad?editing.avslutad:new Date().toISOString(),efterhand:editing?!!editing.efterhand:true};
   try{
     if(editing)await passCol(owner).doc(editing.id).set(data);else await passCol(owner).add(data);
@@ -655,7 +598,7 @@ function startEdit(id,owner){
   const p=(passes[owner]||[]).find(x=>x.id===id);if(!p||p.status!=="klar")return;
   editing={...p,uid:owner};mKunder(owner);
   const s=new Date(p.start),e=new Date(p.slut);
-  $("mDatum").value=iso(s);$("mStart").value=hhmm(s);$("mInringd").value=p.inringd?hhmm(new Date(p.inringd)):"";$("mSlut").value=hhmm(e);$("mRast").value=p.rastMin||0;$("mTyp").value=p.typ||"";$("mOmrade").value=p.omrade||"";$("mKommentar").value=p.kommentar||"";$("mSkada").checked=!!p.skada;
+  $("mDatum").value=iso(s);$("mStart").value=hhmm(s);$("mSlut").value=hhmm(e);$("mRast").value=p.rastMin||0;$("mTyp").value=p.typ||"";$("mOmrade").value=p.omrade||"";$("mKommentar").value=p.kommentar||"";$("mSkada").checked=!!p.skada;
   $("mSave").textContent="Spara ändringar";
   $("manual").querySelector("summary").textContent="Ändra pass"+(owner!==uid?" för "+nameOf(owner):"");
   $("manual").open=true;mUpdate();$("manual").scrollIntoView({behavior:"smooth",block:"center"});
@@ -734,8 +677,8 @@ function render(){
     const ut=utryckFor(kk),utH=ut*fd.length,fH=fd.reduce((s,p)=>s+faktMin(p,kk),0)/60,korH=fH-utH,net=(pr.pris||0)*fH;
     if(document.activeElement!==$("utryck"))$("utryck").value=String(ut).replace(".",",");
     $("tInv").innerHTML=`<tbody>
-      <tr><td>Utryckning<small style="display:block;color:var(--muted)">${fd.length} pass × ${decH(ut)} h från inringning</small></td><td class="num">${decH(utH)} h</td><td></td><td></td></tr>
-      <tr><td>Körtid efter utryckningstiden</td><td class="num">${decH(korH)} h</td><td></td><td></td></tr>
+      <tr><td>Utryckning<small style="display:block;color:var(--muted)">${fd.length} pass × ${decH(ut)} h</small></td><td class="num">${decH(utH)} h</td><td></td><td></td></tr>
+      <tr><td>Körtid</td><td class="num">${decH(korH)} h</td><td></td><td></td></tr>
       <tr><td><b>Timmar att fakturera</b></td><td class="num"><b>${decH(fH)} h</b></td><td class="num">× ${pr.pris?kr(pr.pris)+"/h":"–"}</td><td class="num money">${kr(net)}</td></tr>
       <tr><td colspan="4" class="owner-note" style="border:none">Förarnas arbetade tid (lön): ${hm(fMin)}</td></tr>
       <tr class="sum"><td>Att fakturera${selKund?" – "+esc(selKund==="_ingen"?"ingen kund vald":kundNamn(selKund)):""}</td><td></td><td></td><td class="num">${kr(net)}</td></tr></tbody>`;
@@ -764,13 +707,13 @@ function render(){
 
   const fp=isOwner?selPerson:"";
   const rows=allPasses().filter(p=>p.start&&(p.status==="pagar"||(p.datum>=a&&p.datum<=b))&&(!fp||p.uid===fp)).sort((x,y)=>y.start.localeCompare(x.start));
-  if(!rows.length){$("list").innerHTML=`<p class="empty">Inga pass i den här perioden. Tryck på Inringd nu när du blir uppringd.</p>`;return}
+  if(!rows.length){$("list").innerHTML=`<p class="empty">Inga pass i den här perioden. Tryck på Börja köra när du startar.</p>`;return}
   const days={};rows.forEach(p=>(days[p.datum]=days[p.datum]||[]).push(p));
   $("list").innerHTML=Object.keys(days).sort().reverse().map(d=>{
     const dt=new Date(d+"T12:00"),g=days[d],sum=g.reduce((s,p)=>s+(p.minuter||0),0);
     return `<div class="day"><h4>${DAYS[dt.getDay()]} ${dt.getDate()} ${MONTHS[dt.getMonth()]}<span>${hm(sum)}</span></h4>`+g.map(p=>{
       const s=new Date(p.start),e=p.slut?new Date(p.slut):null,live=p.status==="pagar";
-      return `<div class="row"><div class="t">${hhmm(s)}–${e?hhmm(e):"pågår"}<small>${live?"&nbsp;":p.rastMin?p.rastMin+" min rast":"ingen rast"}${e&&iso(e)!==iso(s)?" · över midnatt":""}${p.inringd?" · inringd "+hhmm(new Date(p.inringd)):""}</small></div>
+      return `<div class="row"><div class="t">${hhmm(s)}–${e?hhmm(e):"pågår"}<small>${live?"&nbsp;":p.rastMin?p.rastMin+" min rast":"ingen rast"}${e&&iso(e)!==iso(s)?" · över midnatt":""}</small></div>
       <div class="w">${isOwner?`<b>${esc(p.namn)}</b>`:""}${live?`<span class="tag live">Pågår</span>`:""}${p.kund?`<span class="tag">${esc(kundNamn(p.kund))}</span>`:""}${p.typ?`<span class="tag">${esc(p.typ)}</span>`:""}${p.skada?`<span class="tag warn">Skada</span>`:""}<small>${p.omrade?esc(p.omrade):""}</small>${p.kommentar?`<span class="comment">”${esc(p.kommentar)}”</span>`:""}</div>
       <div class="h">${live?hm(minutesBetween(p.start,new Date())):hm(p.minuter)}${isOwner&&!live&&obMinutes(p)?`<small style="display:block;font-weight:400;color:var(--muted);font-size:.74rem">${hm(p.minuter-obMinutes(p))} + ${hm(obMinutes(p))} OB</small>`:""}</div>
       <div class="acts">${live?"":`<button class="link" type="button" data-edit="${p.id}" data-uid="${p.uid}">Ändra</button>`}<button class="link del" type="button" data-del="${p.id}" data-uid="${p.uid}">Ta bort</button></div></div>`}).join("")+`</div>`;
@@ -783,17 +726,14 @@ function render(){
 function renderNotices(){
   const others=allPasses().filter(p=>p.uid!==uid);
   const live=others.filter(p=>p.status==="pagar").sort((x,y)=>x.start.localeCompare(y.start));
-  const pavag=others.filter(p=>p.status==="inringd").sort((x,y)=>x.inringd.localeCompare(y.inringd));
   const ended=others.filter(p=>p.status==="klar"&&p.avslutad).sort((x,y)=>y.avslutad.localeCompare(x.avslutad));
   const fresh=ended.filter(p=>!lastSeen||p.avslutad>lastSeen);
   const shown=fresh.length?fresh:ended.slice(0,3);
   show("badge",fresh.length>0);$("badge").textContent=fresh.length;show("markRead",fresh.length>0);
   document.title=(fresh.length?`(${fresh.length}) `:"")+"IHMT Tidrapport";
   const item=(p,isLive)=>{const s=new Date(p.start),e=p.slut?new Date(p.slut):null;
-    return `<div class="notice${isLive?" live":""}"><span class="ic"></span><div><b>${esc(p.namn)}</b> ${isLive?"kör just nu":"har avslutat sitt pass"}<small>${isLive?`${p.inringd?`Inringd ${hhmm(new Date(p.inringd))} · `:""}Började köra ${dayLabel(s)} kl ${hhmm(s)}${p.kund?" · "+esc(kundNamn(p.kund)):""}`:`${dayLabel(s)} ${hhmm(s)}–${hhmm(e)}${p.efterhand?" · inlagt i efterhand":""}`}</small>${!isLive&&p.skada?`<span class="tag warn" style="margin-left:0">Något gick sönder</span>`:""}${!isLive&&p.kommentar?`<span class="comment">”${esc(p.kommentar)}”</span>`:""}</div><span class="h">${isLive?hm(minutesBetween(p.start,new Date())):hm(p.minuter)}</span></div>`};
-  const vagItem=p=>{const sl=utrSlut(p),kvar=Math.round((sl-new Date())/60000);
-    return `<div class="notice live"><span class="ic" style="background:var(--snow)"></span><div><b>${esc(p.namn)}</b> är inringd och på väg<small>Inringd kl ${hhmm(new Date(p.inringd))}${p.kund?" · "+esc(kundNamn(p.kund)):""}</small></div><span class="h">${kvar>0?hm(kvar)+" kvar":"tiden ute"}</span></div>`};
-  $("notiser").innerHTML=(pavag.map(vagItem).join("")+live.map(p=>item(p,true)).join("")+(!fresh.length&&shown.length?`<p class="sub" style="font-size:.8rem;margin:10px 0 2px">Inga nya. Senast avslutade:</p>`:"")+shown.map(p=>item(p,false)).join(""))
+    return `<div class="notice${isLive?" live":""}"><span class="ic"></span><div><b>${esc(p.namn)}</b> ${isLive?"kör just nu":"har avslutat sitt pass"}<small>${isLive?`Började köra ${dayLabel(s)} kl ${hhmm(s)}${p.kund?" · "+esc(kundNamn(p.kund)):""}`:`${dayLabel(s)} ${hhmm(s)}–${hhmm(e)}${p.efterhand?" · inlagt i efterhand":""}`}</small>${!isLive&&p.skada?`<span class="tag warn" style="margin-left:0">Något gick sönder</span>`:""}${!isLive&&p.kommentar?`<span class="comment">”${esc(p.kommentar)}”</span>`:""}</div><span class="h">${isLive?hm(minutesBetween(p.start,new Date())):hm(p.minuter)}</span></div>`};
+  $("notiser").innerHTML=(live.map(p=>item(p,true)).join("")+(!fresh.length&&shown.length?`<p class="sub" style="font-size:.8rem;margin:10px 0 2px">Inga nya. Senast avslutade:</p>`:"")+shown.map(p=>item(p,false)).join(""))
     ||`<p class="empty">När någon startar eller avslutar ett pass syns det här.</p>`;
 }
 $("markRead").onclick=async()=>{
@@ -896,12 +836,12 @@ $("export").onclick=()=>{
   const rows=allPasses().filter(p=>p.status==="klar"&&p.datum>=a&&p.datum<=b&&(!selKund||kOf(p)===selKund)).sort((x,y)=>x.start.localeCompare(y.start));
   const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
   const c2=v=>v.toFixed(2).replace(".",",");
-  const lines=[["Datum","Veckodag","Kund","Person","Typ av arbete","Område/adress","Inringd","Från","Till","Rast (min)","Tid totalt","Arbetade timmar (decimal)","Utryckning (h)","Fakturerade timmar","Timpris","Att fakturera","Timlön","Bruttolön","Skada","Kommentar"].join(";")];
+  const lines=[["Datum","Veckodag","Kund","Person","Typ av arbete","Område/adress","Från","Till","Rast (min)","Tid totalt","Arbetade timmar (decimal)","Utryckning (h)","Fakturerade timmar","Timpris","Att fakturera","Timlön","Bruttolön","Skada","Kommentar"].join(";")];
   let totInv=0,totUt=0,totF=0;
   rows.forEach(p=>{const s=new Date(p.start),e=new Date(p.slut),kk=kOf(p)==="_ingen"?"":p.kund,pr=prisFor(kk).pris||0,l=rates.lon[p.uid]||0,w=wageOf(p.uid,p.minuter,0),fm=faktMin(p,kk),inv=pr*fm/60,ut=utryckFor(kk);totInv+=inv;totUt+=ut;totF+=fm;
-    lines.push([p.datum,DAYS[s.getDay()],kundNamn(kk),p.namn,p.typ,p.omrade,p.inringd?hhmm(new Date(p.inringd)):"",hhmm(s),hhmm(e),p.rastMin||0,hm(p.minuter),dec(p.minuter),decH(ut),decH(fm/60),pr||"",inv?c2(inv):"",l||"",w?c2(w):"",p.skada?"Ja":"",p.kommentar||""].map(q).join(";"))});
+    lines.push([p.datum,DAYS[s.getDay()],kundNamn(kk),p.namn,p.typ,p.omrade,hhmm(s),hhmm(e),p.rastMin||0,hm(p.minuter),dec(p.minuter),decH(ut),decH(fm/60),pr||"",inv?c2(inv):"",l||"",w?c2(w):"",p.skada?"Ja":"",p.kommentar||""].map(q).join(";"))});
   const tot=rows.reduce((s,p)=>s+p.minuter,0);
-  lines.push(["","","","","","","","","","Totalt",hm(tot),dec(tot),decH(totUt),decH(totF/60),"",c2(totInv)].join(";"));
+  lines.push(["","","","","","","","","Totalt",hm(tot),dec(tot),decH(totUt),decH(totF/60),"",c2(totInv)].join(";"));
   const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const link=document.createElement("a");link.href=URL.createObjectURL(blob);const fn=selKund?(selKund==="_ingen"?"utan-kund":kundNamn(selKund)).replace(/[^\wåäöÅÄÖ-]+/g,"-")+"_":"";link.download=`tidrapport_${fn}${a}_${b}.csv`;
   document.body.appendChild(link);link.click();setTimeout(()=>{URL.revokeObjectURL(link.href);link.remove()},1000);
@@ -910,7 +850,7 @@ $("export").onclick=()=>{
 function watchPasses(id){
   if(subs[id])return;
   subs[id]=passCol(id).onSnapshot(snap=>{
-    passes[id]=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.start||p.inringd);
+    passes[id]=snap.docs.map(d=>({id:d.id,...d.data()})).filter(p=>p.start);
     render();announce();
   },()=>{});
 }
